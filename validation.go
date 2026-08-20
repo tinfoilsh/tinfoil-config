@@ -1,6 +1,7 @@
 package tinfoilconfig
 
 import (
+	_ "crypto/sha256" // Register the canonical OCI digest for standalone consumers.
 	"fmt"
 	"net"
 	"regexp"
