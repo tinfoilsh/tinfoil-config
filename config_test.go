@@ -61,3 +61,10 @@ func TestDecodeSetsDefaults(t *testing.T) {
 		t.Fatalf("shim defaults = %#v", config.ShimCfg)
 	}
 }
+
+func TestDecodeShimRejectsNilNode(t *testing.T) {
+	_, err := DecodeShim(nil)
+	if err == nil || !strings.Contains(err.Error(), "missing YAML document") {
+		t.Fatalf("error = %v, want missing YAML document", err)
+	}
+}

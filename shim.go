@@ -70,7 +70,7 @@ func (c *ShimConfig) Validate() error {
 
 func validateYAMLTree(root *yaml.Node) error {
 	if root == nil {
-		return nil
+		return fmt.Errorf("missing YAML document")
 	}
 	type pendingNode struct {
 		node  *yaml.Node
