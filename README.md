@@ -24,3 +24,7 @@ go run ./cmd/tinfoil-config config.yml
 
 The command exits non-zero and prints the exact schema or policy violation for
 invalid input.
+
+Plaintext models without a `containers[].models` grant retain the legacy shared
+mount behavior. Granted models use isolated named mounts; encrypted models
+always require at least one explicit container grant.
