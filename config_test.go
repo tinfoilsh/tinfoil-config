@@ -62,6 +62,61 @@ func TestDecodeSetsDefaults(t *testing.T) {
 	}
 }
 
+func TestDecodeValidatesModelAccess(t *testing.T) {
+	const ref = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_4096_0eefa619-50b7-588f-a072-d405fb439d36"
+	base := strings.Replace(validConfig,
+		"containers:\n",
+		"models:\n  - name: private-model\n    repo: org/model@revision\n    emwp: "+ref+"\n    key-secret: MODEL_KEY\ncontainers:\n",
+		1,
+	)
+
+	for _, test := range []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{name: "explicit grant", yaml: strings.Replace(base, "networks: [app]", "networks: [app]\n    models: [private-model]", 1)},
+		{name: "encrypted model without grant", yaml: base, want: "requires an explicit container grant"},
+		{name: "unknown model", yaml: strings.Replace(base, "networks: [app]", "networks: [app]\n    models: [unknown]", 1), want: "is not declared"},
+		{name: "duplicate grant", yaml: strings.Replace(base, "networks: [app]", "networks: [app]\n    models: [private-model, private-model]", 1), want: "is duplicated"},
+		{name: "invalid name", yaml: strings.Replace(strings.Replace(base, "private-model", "../private", 1), "networks: [app]", "networks: [app]\n    models: [../private]", 1), want: "is invalid"},
+		{name: "duplicate model", yaml: strings.Replace(strings.Replace(base, "containers:\n", "  - name: private-model\n    mwp: "+ref+"\ncontainers:\n", 1), "networks: [app]", "networks: [app]\n    models: [private-model]", 1), want: "duplicates"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Decode([]byte(test.yaml), Options{})
+			if test.want == "" && err != nil {
+				t.Fatal(err)
+			}
+			if test.want != "" && (err == nil || !strings.Contains(err.Error(), test.want)) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
+	}
+
+	plaintext := strings.Replace(validConfig, "containers:\n", "models:\n  - name: public-model\n    mwp: "+ref+"\ncontainers:\n", 1)
+	config, err := Decode([]byte(plaintext), Options{})
+	if err != nil {
+		t.Fatalf("legacy plaintext model without grant: %v", err)
+	}
+	if ModelIsIsolated(config, "public-model") {
+		t.Fatal("legacy plaintext model is isolated")
+	}
+
+	isolatedPlaintext := strings.Replace(plaintext, "networks: [app]", "networks: [app]\n    models: [public-model]", 1)
+	config, err = Decode([]byte(isolatedPlaintext), Options{})
+	if err != nil {
+		t.Fatalf("isolated plaintext model: %v", err)
+	}
+	if !ModelIsIsolated(config, "public-model") {
+		t.Fatal("explicitly granted plaintext model is not isolated")
+	}
+
+	namelessPlaintext := strings.Replace(plaintext, "  - name: public-model\n    mwp:", "  - mwp:", 1)
+	if _, err := Decode([]byte(namelessPlaintext), Options{}); err != nil {
+		t.Fatalf("legacy nameless plaintext model: %v", err)
+	}
+}
+
 func TestDecodeShimRejectsNilNode(t *testing.T) {
 	_, err := DecodeShim(nil)
 	if err == nil || !strings.Contains(err.Error(), "missing YAML document") {
