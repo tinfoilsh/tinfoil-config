@@ -29,6 +29,14 @@ const (
 	debugManagerSocketBind    = "/run/tinfoil/containers.sock:/run/tinfoil/containers.sock"
 )
 
+// reservedHostPorts are the CVM's own listeners: a published port that
+// collides with one would either fail to bind or shadow the shim.
+var reservedHostPorts = map[int]string{
+	443:                   "the shim",
+	80:                    "ACME HTTP-01",
+	ReservedDebugHostPort: "the debug toolbox",
+}
+
 var (
 	validEgressModes       = []string{"closed", "allowlist", "open"}
 	networkNamePattern     = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
@@ -104,6 +112,7 @@ func validateContainer(index int, container *Container, availableGPUs int, optio
 		{"command", len(container.Command)}, {"entrypoint", len(container.Entrypoint)}, {"env", len(container.Env)},
 		{"secrets", len(container.Secrets)}, {"models", len(container.Models)}, {"volumes", len(container.Volumes)}, {"devices", len(container.Devices)},
 		{"cap_add", len(container.CapAdd)}, {"networks", len(container.Networks)},
+		{"ports", len(container.Ports)},
 	}
 	for _, list := range lists {
 		if list.count > maxContainerListEntries {
@@ -331,7 +340,11 @@ func validateNetwork(config *Config) error {
 			return fmt.Errorf("networks.%s: %w", name, err)
 		}
 	}
+	publishedBy := map[int]string{}
 	for index, container := range config.Containers {
+		if err := validateContainerPorts(index, &container, publishedBy); err != nil {
+			return err
+		}
 		seen := map[string]bool{}
 		egressCount := 0
 		for _, name := range container.Networks {
@@ -361,6 +374,32 @@ func validateNetwork(config *Config) error {
 			}
 		}
 		return fmt.Errorf("shim.upstream-container %q does not match any containers[].name", config.ShimCfg.UpstreamContainer)
+	}
+	return nil
+}
+
+// validateContainerPorts checks a container's `ports:` entries against the
+// ports the CVM reserves for itself and against every other container's
+// published ports, recording each claim in publishedBy.
+func validateContainerPorts(index int, container *Container, publishedBy map[int]string) error {
+	mappings, err := ParsePorts(container.Ports)
+	if err != nil {
+		return fmt.Errorf("containers[%d] %q: %v", index, container.Name, err)
+	}
+	if len(mappings) == 0 {
+		return nil
+	}
+	if len(container.Networks) == 0 {
+		return fmt.Errorf("containers[%d] %q: ports requires an attached network", index, container.Name)
+	}
+	for _, mapping := range mappings {
+		if reserved, used := reservedHostPorts[mapping.Host]; used {
+			return fmt.Errorf("containers[%d] %q: host port %d is reserved for %s", index, container.Name, mapping.Host, reserved)
+		}
+		if prior, taken := publishedBy[mapping.Host]; taken {
+			return fmt.Errorf("containers[%d] %q: host port %d is already published by %q", index, container.Name, mapping.Host, prior)
+		}
+		publishedBy[mapping.Host] = container.Name
 	}
 	return nil
 }
