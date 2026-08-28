@@ -107,6 +107,7 @@ type Container struct {
 	CapAdd      []string          `yaml:"cap_add,omitempty"`
 	Runtime     string            `yaml:"runtime,omitempty"`
 	Networks    []string          `yaml:"networks,omitempty"`
+	Ports       []string          `yaml:"ports,omitempty"`
 	IPC         string            `yaml:"ipc,omitempty"`
 	PidMode     string            `yaml:"pid,omitempty"`
 	GPUs        interface{}       `yaml:"gpus,omitempty"`
@@ -133,7 +134,7 @@ var containerFields = map[string]bool{
 	"name": true, "image": true, "command": true, "entrypoint": true,
 	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true,
 	"volumes": true, "devices": true, "cap_add": true, "runtime": true,
-	"networks": true, "ipc": true, "pid": true, "gpus": true,
+	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,
 	"shm_size": true, "memory": true, "cpus": true, "tmpfs": true,
 	"read_only": true, "pids_limit": true, "restart": true,
 	"stop_signal": true, "stop_timeout": true, "healthcheck": true,
