@@ -37,6 +37,9 @@ var (
 )
 
 func Validate(config *Config, options Options) error {
+	if config.KBSURL != "" && config.VaultURL != "" {
+		return fmt.Errorf("kbs-url and vault-url cannot both be set")
+	}
 	if config.GPUs < 0 || config.GPUs > 8 {
 		return fmt.Errorf("gpus must be between 0 and 8 (got %d)", config.GPUs)
 	}

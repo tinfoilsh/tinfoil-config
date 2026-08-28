@@ -37,7 +37,15 @@ type Config struct {
 	GPUs       int                     `yaml:"gpus"`
 	Models     []ModelSpec             `yaml:"models"`
 	Containers []Container             `yaml:"containers"`
-	VaultURL   string                  `yaml:"vault-url,omitempty"`
+	KBSURL     string                  `yaml:"kbs-url,omitempty"`
+	VaultURL   string                  `yaml:"vault-url,omitempty"` // Deprecated: use KBSURL.
+}
+
+func (c *Config) KeyBrokerURL() string {
+	if c.KBSURL != "" {
+		return c.KBSURL
+	}
+	return c.VaultURL
 }
 
 type CVMNetworkConfig struct {
