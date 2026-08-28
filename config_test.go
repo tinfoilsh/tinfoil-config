@@ -30,7 +30,7 @@ func TestDecodeValidation(t *testing.T) {
 	}{
 		{name: "valid", yaml: validConfig},
 		{name: "unknown top-level field", yaml: validConfig + "unknown: true\n", want: "field unknown not found"},
-		{name: "KBS and legacy Vault URLs", yaml: validConfig + "kbs-url: https://kbs.example\nvault-url: https://vault.example\n", want: "kbs-url and vault-url cannot both be set"},
+		{name: "legacy Vault URL", yaml: validConfig + "vault-url: https://vault.example\n", want: "field vault-url not found"},
 		{name: "unknown container field", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    typo: true", 1), want: "unknown container field"},
 		{name: "mutable image", yaml: strings.Replace(validConfig, "example.com/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "example.com/app:latest", 1), want: "immutable digest"},
 		{name: "host socket rejected", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    volumes: [/run/docker.sock:/var/run/docker.sock]", 1), want: "named volume"},
@@ -50,28 +50,13 @@ func TestDecodeValidation(t *testing.T) {
 	}
 }
 
-func TestDecodeKeyBrokerURL(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		field      string
-		wantKBSURL string
-		wantVault  string
-	}{
-		{name: "KBS URL", field: "kbs-url", wantKBSURL: "https://kbs.example"},
-		{name: "legacy Vault URL", field: "vault-url", wantVault: "https://kbs.example"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			config, err := Decode([]byte(validConfig+test.field+": https://kbs.example\n"), Options{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if config.KBSURL != test.wantKBSURL || config.VaultURL != test.wantVault {
-				t.Fatalf("KBS/Vault URLs = %q/%q", config.KBSURL, config.VaultURL)
-			}
-			if config.KeyBrokerURL() != "https://kbs.example" {
-				t.Fatalf("key broker URL = %q", config.KeyBrokerURL())
-			}
-		})
+func TestDecodeKBSURL(t *testing.T) {
+	config, err := Decode([]byte(validConfig+"kbs-url: https://kbs.example\n"), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.KBSURL != "https://kbs.example" {
+		t.Fatalf("KBS URL = %q", config.KBSURL)
 	}
 }
 

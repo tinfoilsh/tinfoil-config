@@ -38,14 +38,6 @@ type Config struct {
 	Models     []ModelSpec             `yaml:"models"`
 	Containers []Container             `yaml:"containers"`
 	KBSURL     string                  `yaml:"kbs-url,omitempty"`
-	VaultURL   string                  `yaml:"vault-url,omitempty"` // Deprecated: use KBSURL.
-}
-
-func (c *Config) KeyBrokerURL() string {
-	if c.KBSURL != "" {
-		return c.KBSURL
-	}
-	return c.VaultURL
 }
 
 type CVMNetworkConfig struct {
