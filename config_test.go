@@ -36,6 +36,8 @@ func TestDecodeValidation(t *testing.T) {
 		{name: "trusted debug socket accepted", options: Options{Mode: HostDebugMode}, yaml: strings.Replace(validConfig, "name: app\n    image", fmt.Sprintf("name: %s\n    volumes: [/run/docker.sock:/var/run/docker.sock]\n    image", ReservedDebugContainerName), 1)},
 		{name: "other host socket rejected in debug mode", options: Options{Mode: HostDebugMode}, yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    volumes: [/etc:/host]", 1), want: "named volume"},
 		{name: "multiple documents", yaml: validConfig + "\n---\n{}\n", want: "multiple YAML documents"},
+		{name: "model schema accepted", yaml: validConfig + "models:\n  - repo: org/model@revision\n    schema: 2\n"},
+		{name: "negative model schema", yaml: validConfig + "models:\n  - repo: org/model@revision\n    schema: -1\n", want: "schema must be a positive integer"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := Decode([]byte(test.yaml), test.options)

@@ -78,6 +78,9 @@ func validateShape(config *Config, options Options) error {
 	seen := map[string]int{}
 	modelKeys := map[string]int{}
 	for index, model := range config.Models {
+		if model.Schema < 0 {
+			return fmt.Errorf("models[%d].schema must be a positive integer", index)
+		}
 		if model.KeySecret == "" {
 			continue
 		}
