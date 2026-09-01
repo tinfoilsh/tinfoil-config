@@ -90,6 +90,9 @@ type ModelSpec struct {
 	MWP       string `yaml:"mwp,omitempty"`
 	EMWP      string `yaml:"emwp,omitempty"`
 	KeySecret string `yaml:"key-secret,omitempty"`
+	// Schema is the pack schema the pinned artifact was built with (0 = schema 1,
+	// the original layout). Declarative for now; no consumer reads it yet.
+	Schema int `yaml:"schema,omitempty"`
 }
 
 type Container struct {
