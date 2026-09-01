@@ -10,6 +10,7 @@ const validConfig = `
 cvm-version: 0.11.0
 cpus: 8
 memory: 16384
+keyserver-url: https://keys.example.com
 shim:
   upstream-port: 8080
 networks:
@@ -29,6 +30,7 @@ func TestDecodeValidation(t *testing.T) {
 		want    string
 	}{
 		{name: "valid", yaml: validConfig},
+		{name: "obsolete vault URL", yaml: validConfig + "vault-url: https://keys.example.com\n", want: "field vault-url not found"},
 		{name: "unknown top-level field", yaml: validConfig + "unknown: true\n", want: "field unknown not found"},
 		{name: "unknown container field", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    typo: true", 1), want: "unknown container field"},
 		{name: "mutable image", yaml: strings.Replace(validConfig, "example.com/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "example.com/app:latest", 1), want: "immutable digest"},
@@ -61,6 +63,9 @@ func TestDecodeSetsDefaults(t *testing.T) {
 	}
 	if config.ShimCfg.TLSMode != "cert-proxy" || !config.ShimCfg.PublishAttestation {
 		t.Fatalf("shim defaults = %#v", config.ShimCfg)
+	}
+	if config.KeyserverURL != "https://keys.example.com" {
+		t.Fatalf("keyserver URL = %q", config.KeyserverURL)
 	}
 }
 

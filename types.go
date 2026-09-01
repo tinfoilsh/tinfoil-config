@@ -27,17 +27,17 @@ type Options struct {
 }
 
 type Config struct {
-	CVMVersion string                  `yaml:"cvm-version"`
-	ShimRaw    yaml.Node               `yaml:"shim"`
-	ShimCfg    *ShimConfig             `yaml:"-"`
-	CVMNetwork CVMNetworkConfig        `yaml:"cvm-network"`
-	Networks   map[string]*NetworkSpec `yaml:"networks"`
-	CPUs       int                     `yaml:"cpus"`
-	Memory     int                     `yaml:"memory"`
-	GPUs       int                     `yaml:"gpus"`
-	Models     []ModelSpec             `yaml:"models"`
-	Containers []Container             `yaml:"containers"`
-	VaultURL   string                  `yaml:"vault-url,omitempty"`
+	CVMVersion   string                  `yaml:"cvm-version"`
+	ShimRaw      yaml.Node               `yaml:"shim"`
+	ShimCfg      *ShimConfig             `yaml:"-"`
+	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network"`
+	Networks     map[string]*NetworkSpec `yaml:"networks"`
+	CPUs         int                     `yaml:"cpus"`
+	Memory       int                     `yaml:"memory"`
+	GPUs         int                     `yaml:"gpus"`
+	Models       []ModelSpec             `yaml:"models"`
+	Containers   []Container             `yaml:"containers"`
+	KeyserverURL string                  `yaml:"keyserver-url,omitempty"`
 }
 
 type CVMNetworkConfig struct {
