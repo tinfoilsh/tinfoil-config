@@ -36,6 +36,7 @@ type Config struct {
 	Memory       int                     `yaml:"memory"`
 	GPUs         int                     `yaml:"gpus"`
 	Models       []ModelSpec             `yaml:"models"`
+	Volumes      []VolumeSpec            `yaml:"volumes"`
 	Containers   []Container             `yaml:"containers"`
 	KeyserverURL string                  `yaml:"keyserver-url,omitempty"`
 }
@@ -81,6 +82,12 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 		n.Egress = "closed"
 	}
 	return nil
+}
+
+type VolumeSpec struct {
+	Name  string `yaml:"name"`
+	Exec  bool   `yaml:"exec,omitempty"`
+	Owner int    `yaml:"owner,omitempty"`
 }
 
 type ModelSpec struct {
