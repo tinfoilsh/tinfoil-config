@@ -4,6 +4,7 @@ import (
 	_ "crypto/sha256" // Register the canonical OCI digest for standalone consumers.
 	"fmt"
 	"net"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -25,6 +26,7 @@ const (
 	maxEnvironmentNameBytes   = 256
 	maxHostnameLength         = 253
 	maxBridgeNameLen          = 15
+	maxVolumeOwner            = 65534
 	debugDockerSocketBind     = "/run/docker.sock:/var/run/docker.sock"
 	debugManagerSocketBind    = "/run/tinfoil/containers.sock:/run/tinfoil/containers.sock"
 )
@@ -42,6 +44,7 @@ var (
 	networkNamePattern     = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	rfc1123HostnamePattern = regexp.MustCompile(`^(?i)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	modelNamePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	volumeNamePattern      = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 )
 
 func Validate(config *Config, options Options) error {
@@ -51,13 +54,37 @@ func Validate(config *Config, options Options) error {
 	if len(config.Models) > MaxModelDisks {
 		return fmt.Errorf("models must contain at most %d entries (got %d)", MaxModelDisks, len(config.Models))
 	}
-	if err := validateShape(config, options); err != nil {
+	volumes, err := validateVolumes(config)
+	if err != nil {
+		return err
+	}
+	if err := validateShape(config, volumes, options); err != nil {
 		return err
 	}
 	return validateNetwork(config)
 }
 
-func validateShape(config *Config, options Options) error {
+func validateVolumes(config *Config) (map[string]bool, error) {
+	if disks := len(config.Models) + len(config.Volumes); disks > MaxModelDisks {
+		return nil, fmt.Errorf("models and volumes must declare at most %d disks (got %d)", MaxModelDisks, disks)
+	}
+	declared := make(map[string]bool, len(config.Volumes))
+	for index, volume := range config.Volumes {
+		if !volumeNamePattern.MatchString(volume.Name) {
+			return nil, fmt.Errorf("volumes[%d].name %q must be lowercase alphanumeric with hyphens", index, volume.Name)
+		}
+		if declared[volume.Name] {
+			return nil, fmt.Errorf("volumes[%d].name %q is declared twice", index, volume.Name)
+		}
+		if volume.Owner < 0 || volume.Owner > maxVolumeOwner {
+			return nil, fmt.Errorf("volumes[%d].owner must be between 0 and %d (got %d)", index, maxVolumeOwner, volume.Owner)
+		}
+		declared[volume.Name] = true
+	}
+	return declared, nil
+}
+
+func validateShape(config *Config, volumes map[string]bool, options Options) error {
 	if len(config.Containers) > maxConfigContainers {
 		return fmt.Errorf("containers exceeds limit %d", maxConfigContainers)
 	}
@@ -95,7 +122,7 @@ func validateShape(config *Config, options Options) error {
 			return fmt.Errorf("containers[%d].name %q duplicates containers[%d].name", index, container.Name, prior)
 		}
 		seen[container.Name] = index
-		if err := validateContainer(index, container, config.GPUs, options); err != nil {
+		if err := validateContainer(index, container, config.GPUs, volumes, options); err != nil {
 			return err
 		}
 		for secretIndex, secret := range container.Secrets {
@@ -107,7 +134,7 @@ func validateShape(config *Config, options Options) error {
 	return validateModelAccess(config)
 }
 
-func validateContainer(index int, container *Container, availableGPUs int, options Options) error {
+func validateContainer(index int, container *Container, availableGPUs int, volumes map[string]bool, options Options) error {
 	lists := []struct {
 		name  string
 		count int
@@ -131,7 +158,7 @@ func validateContainer(index int, container *Container, availableGPUs int, optio
 	if err := validateContainerImage(index, container.Image); err != nil {
 		return err
 	}
-	if err := validateContainerPolicy(index, container, availableGPUs, options); err != nil {
+	if err := validateContainerPolicy(index, container, availableGPUs, volumes, options); err != nil {
 		return err
 	}
 	for envIndex, item := range container.Env {
@@ -241,7 +268,7 @@ func validateContainerImage(index int, image string) error {
 	return nil
 }
 
-func validateContainerPolicy(index int, container *Container, availableGPUs int, options Options) error {
+func validateContainerPolicy(index int, container *Container, availableGPUs int, volumes map[string]bool, options Options) error {
 	if container.inputFields.privileged {
 		return fmt.Errorf("containers[%d].privileged is unsupported", index)
 	}
@@ -276,9 +303,12 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 		if ReservedDebugRuntimeEnabled(container.Name, options) && (volume == debugDockerSocketBind || volume == debugManagerSocketBind) {
 			continue
 		}
-		source, _, found := strings.Cut(volume, ":")
-		if !found || !validNamedVolume(source) {
-			return fmt.Errorf("containers[%d].volumes[%d] must use a named volume source", index, volumeIndex)
+		source, target, found := strings.Cut(volume, ":")
+		if !found || !volumes[source] {
+			return fmt.Errorf("containers[%d].volumes[%d] must name a volume declared in volumes", index, volumeIndex)
+		}
+		if !path.IsAbs(target) || path.Clean(target) != target {
+			return fmt.Errorf("containers[%d].volumes[%d] must mount at a clean absolute path", index, volumeIndex)
 		}
 	}
 	for capabilityIndex, capability := range container.CapAdd {
@@ -450,23 +480,6 @@ func validEnvironmentName(name string) bool {
 	for index := 0; index < len(name); index++ {
 		character := name[index]
 		if character == '_' || character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z' || index > 0 && character >= '0' && character <= '9' {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func validNamedVolume(source string) bool {
-	if source == "" || source == "." || source == ".." {
-		return false
-	}
-	for index := 0; index < len(source); index++ {
-		character := source[index]
-		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' {
-			continue
-		}
-		if index > 0 && strings.ContainsRune("_.-", rune(character)) {
 			continue
 		}
 		return false
