@@ -27,6 +27,7 @@ const (
 	maxHostnameLength         = 253
 	maxBridgeNameLen          = 15
 	maxVolumeOwner            = 65534
+	maxVolumeOverlays         = 8
 	debugDockerSocketBind     = "/run/docker.sock:/var/run/docker.sock"
 	debugManagerSocketBind    = "/run/tinfoil/containers.sock:/run/tinfoil/containers.sock"
 )
@@ -79,9 +80,50 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if volume.Owner < 0 || volume.Owner > maxVolumeOwner {
 			return nil, fmt.Errorf("volumes[%d].owner must be between 0 and %d (got %d)", index, maxVolumeOwner, volume.Owner)
 		}
+		if err := validateOverlays(config, index, volume); err != nil {
+			return nil, err
+		}
 		declared[volume.Name] = true
 	}
 	return declared, nil
+}
+
+// validateOverlays refuses an overlay whose lower layer is not a model this
+// configuration declares, because the mount is made from the pack the model
+// disk carries and a name with nothing behind it would leave the volume
+// serving an empty store. A non-executable volume is refused for the same
+// reason: the merged mount inherits the volume's flags, so the packed programs
+// underneath it could never run.
+func validateOverlays(config *Config, index int, volume VolumeSpec) error {
+	if len(volume.Overlays) > maxVolumeOverlays {
+		return fmt.Errorf("volumes[%d].overlays exceeds limit %d", index, maxVolumeOverlays)
+	}
+	targets := make(map[string]bool, len(volume.Overlays))
+	for overlayIndex, overlay := range volume.Overlays {
+		if !modelNamePattern.MatchString(overlay.Model) {
+			return fmt.Errorf("volumes[%d].overlays[%d].model %q is invalid", index, overlayIndex, overlay.Model)
+		}
+		if !slices.ContainsFunc(config.Models, func(model ModelSpec) bool { return model.Name == overlay.Model }) {
+			return fmt.Errorf("volumes[%d].overlays[%d].model %q is not declared", index, overlayIndex, overlay.Model)
+		}
+		for _, relative := range []struct {
+			field string
+			value string
+		}{{"source", overlay.Source}, {"target", overlay.Target}} {
+			if relative.value == "" || path.IsAbs(relative.value) || path.Clean(relative.value) != relative.value ||
+				strings.HasPrefix(relative.value, "../") {
+				return fmt.Errorf("volumes[%d].overlays[%d].%s must be a clean relative path", index, overlayIndex, relative.field)
+			}
+		}
+		if targets[overlay.Target] {
+			return fmt.Errorf("volumes[%d].overlays[%d].target %q is claimed twice", index, overlayIndex, overlay.Target)
+		}
+		if !volume.Exec {
+			return fmt.Errorf("volumes[%d].overlays[%d] requires exec: true on the volume", index, overlayIndex)
+		}
+		targets[overlay.Target] = true
+	}
+	return nil
 }
 
 func validateShape(config *Config, volumes map[string]bool, options Options) error {
@@ -245,9 +287,35 @@ func validateModelAccess(config *Config) error {
 	return nil
 }
 
+// ModelIsIsolated reports whether a model has a named consumer, which is what
+// moves its pack out of the shared public ramdisk and into the isolated
+// layout. A volume overlay counts: it is mounted from the pack by name, so the
+// pack has to be somewhere a name alone can find it.
 func ModelIsIsolated(config *Config, name string) bool {
 	for _, container := range config.Containers {
 		if slices.Contains(container.Models, name) {
+			return true
+		}
+	}
+	for _, volume := range config.Volumes {
+		if slices.ContainsFunc(volume.Overlays, func(overlay VolumeOverlay) bool { return overlay.Model == name }) {
+			return true
+		}
+	}
+	return false
+}
+
+// ModelBacksExecutableVolume reports whether a model's pack is the lower layer
+// of a path backed onto a volume that permits execution. Such a pack has to be
+// mounted executable itself: a kernel does not necessarily let the merged view
+// launder the lower layer's noexec, so the programs in the pack would be
+// unrunnable however the volume above them is mounted.
+func ModelBacksExecutableVolume(config *Config, name string) bool {
+	for _, volume := range config.Volumes {
+		if !volume.Exec {
+			continue
+		}
+		if slices.ContainsFunc(volume.Overlays, func(overlay VolumeOverlay) bool { return overlay.Model == name }) {
 			return true
 		}
 	}

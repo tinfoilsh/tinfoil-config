@@ -85,9 +85,21 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type VolumeSpec struct {
-	Name  string `yaml:"name"`
-	Exec  bool   `yaml:"exec,omitempty"`
-	Owner int    `yaml:"owner,omitempty"`
+	Name     string          `yaml:"name"`
+	Exec     bool            `yaml:"exec,omitempty"`
+	Owner    int             `yaml:"owner,omitempty"`
+	Overlays []VolumeOverlay `yaml:"overlays,omitempty"`
+}
+
+// VolumeOverlay merges a read-only model pack into a writable volume: Source
+// inside the pack becomes the lower layer of an overlay mounted at Target
+// inside the volume, so a container sees one tree it can write to while the
+// bytes underneath stay the attested ones. Both paths are relative to their
+// own root.
+type VolumeOverlay struct {
+	Model  string `yaml:"model"`
+	Source string `yaml:"source"`
+	Target string `yaml:"target"`
 }
 
 type ModelSpec struct {
