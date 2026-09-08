@@ -91,11 +91,11 @@ type VolumeSpec struct {
 	Overlays []VolumeOverlay `yaml:"overlays,omitempty"`
 }
 
-// VolumeOverlay merges a read-only model pack into a writable volume: Source
-// inside the pack becomes the lower layer of an overlay mounted at Target
-// inside the volume, so a container sees one tree it can write to while the
-// bytes underneath stay the attested ones. Both paths are relative to their
-// own root.
+// VolumeOverlay stacks a model pack under a writable directory on the volume:
+// Source is a subtree of the Model pack, taken as the read-only lower layer,
+// and the merged tree appears at Target inside the volume. Both paths are
+// measured here rather than chosen at unlock, so no runtime caller can steer
+// the mount.
 type VolumeOverlay struct {
 	Model  string `yaml:"model"`
 	Source string `yaml:"source"`
@@ -109,6 +109,8 @@ type ModelSpec struct {
 	MWP       string `yaml:"mwp,omitempty"`
 	EMWP      string `yaml:"emwp,omitempty"`
 	KeySecret string `yaml:"key-secret,omitempty"`
+	// Weights are never programs, so a pack is noexec unless declared otherwise.
+	Exec bool `yaml:"exec,omitempty"`
 	// Schema is the pack schema the pinned artifact was built with (0 = schema 1,
 	// the original layout). Declarative for now; no consumer reads it yet.
 	Schema int `yaml:"schema,omitempty"`

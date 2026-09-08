@@ -46,6 +46,11 @@ var (
 	rfc1123HostnamePattern = regexp.MustCompile(`^(?i)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	modelNamePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 	volumeNamePattern      = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+
+	// An overlay source is a path inside a pack, so it may hold slashes, but
+	// every segment begins with a non-dot to keep out `.` and `..`, and the
+	// character class keeps out the comma and colon that delimit mount options.
+	overlaySourcePattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`)
 )
 
 func Validate(config *Config, options Options) error {
@@ -69,6 +74,10 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 	if disks := len(config.Models) + len(config.Volumes); disks > MaxModelDisks {
 		return nil, fmt.Errorf("models and volumes must declare at most %d disks (got %d)", MaxModelDisks, disks)
 	}
+	execModels := make(map[string]bool, len(config.Models))
+	for _, model := range config.Models {
+		execModels[model.Name] = model.Exec
+	}
 	declared := make(map[string]bool, len(config.Volumes))
 	for index, volume := range config.Volumes {
 		if !volumeNamePattern.MatchString(volume.Name) {
@@ -80,7 +89,7 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if volume.Owner < 0 || volume.Owner > maxVolumeOwner {
 			return nil, fmt.Errorf("volumes[%d].owner must be between 0 and %d (got %d)", index, maxVolumeOwner, volume.Owner)
 		}
-		if err := validateOverlays(config, index, volume); err != nil {
+		if err := validateVolumeOverlays(index, &volume, execModels); err != nil {
 			return nil, err
 		}
 		declared[volume.Name] = true
@@ -88,38 +97,29 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 	return declared, nil
 }
 
-// validateOverlays refuses an overlay whose lower layer is not a model this
-// configuration declares, because the mount is made from the pack the model
-// disk carries and a name with nothing behind it would leave the volume
-// serving an empty store. A non-executable volume is refused for the same
-// reason: the merged mount inherits the volume's flags, so the packed programs
-// underneath it could never run.
-func validateOverlays(config *Config, index int, volume VolumeSpec) error {
+func validateVolumeOverlays(index int, volume *VolumeSpec, execModels map[string]bool) error {
 	if len(volume.Overlays) > maxVolumeOverlays {
-		return fmt.Errorf("volumes[%d].overlays exceeds limit %d", index, maxVolumeOverlays)
+		return fmt.Errorf("volumes[%d] declares more than %d overlays", index, maxVolumeOverlays)
+	}
+	if len(volume.Overlays) > 0 && !volume.Exec {
+		return fmt.Errorf("volumes[%d] has overlays but is not exec", index)
 	}
 	targets := make(map[string]bool, len(volume.Overlays))
 	for overlayIndex, overlay := range volume.Overlays {
-		if !modelNamePattern.MatchString(overlay.Model) {
-			return fmt.Errorf("volumes[%d].overlays[%d].model %q is invalid", index, overlayIndex, overlay.Model)
+		if !modelNamePattern.MatchString(overlay.Model) || !execModels[overlay.Model] {
+			return fmt.Errorf("volumes[%d].overlays[%d] references unknown or non-exec model %q", index, overlayIndex, overlay.Model)
 		}
-		if !slices.ContainsFunc(config.Models, func(model ModelSpec) bool { return model.Name == overlay.Model }) {
-			return fmt.Errorf("volumes[%d].overlays[%d].model %q is not declared", index, overlayIndex, overlay.Model)
+		if !overlaySourcePattern.MatchString(overlay.Source) {
+			return fmt.Errorf("volumes[%d].overlays[%d].source %q is not a pack-relative path", index, overlayIndex, overlay.Source)
 		}
-		for _, relative := range []struct {
-			field string
-			value string
-		}{{"source", overlay.Source}, {"target", overlay.Target}} {
-			if relative.value == "" || path.IsAbs(relative.value) || path.Clean(relative.value) != relative.value ||
-				strings.HasPrefix(relative.value, "../") {
-				return fmt.Errorf("volumes[%d].overlays[%d].%s must be a clean relative path", index, overlayIndex, relative.field)
-			}
+		// The target names a directory this volume's worker creates and mounts
+		// on, so it stays a single segment: no separator can traverse out of the
+		// volume, and no intermediate component can be a planted symlink.
+		if !volumeNamePattern.MatchString(overlay.Target) {
+			return fmt.Errorf("volumes[%d].overlays[%d].target %q must be a single lowercase name", index, overlayIndex, overlay.Target)
 		}
 		if targets[overlay.Target] {
-			return fmt.Errorf("volumes[%d].overlays[%d].target %q is claimed twice", index, overlayIndex, overlay.Target)
-		}
-		if !volume.Exec {
-			return fmt.Errorf("volumes[%d].overlays[%d] requires exec: true on the volume", index, overlayIndex)
+			return fmt.Errorf("volumes[%d].overlays[%d].target %q is declared twice", index, overlayIndex, overlay.Target)
 		}
 		targets[overlay.Target] = true
 	}
@@ -287,35 +287,9 @@ func validateModelAccess(config *Config) error {
 	return nil
 }
 
-// ModelIsIsolated reports whether a model has a named consumer, which is what
-// moves its pack out of the shared public ramdisk and into the isolated
-// layout. A volume overlay counts: it is mounted from the pack by name, so the
-// pack has to be somewhere a name alone can find it.
 func ModelIsIsolated(config *Config, name string) bool {
 	for _, container := range config.Containers {
 		if slices.Contains(container.Models, name) {
-			return true
-		}
-	}
-	for _, volume := range config.Volumes {
-		if slices.ContainsFunc(volume.Overlays, func(overlay VolumeOverlay) bool { return overlay.Model == name }) {
-			return true
-		}
-	}
-	return false
-}
-
-// ModelBacksExecutableVolume reports whether a model's pack is the lower layer
-// of a path backed onto a volume that permits execution. Such a pack has to be
-// mounted executable itself: a kernel does not necessarily let the merged view
-// launder the lower layer's noexec, so the programs in the pack would be
-// unrunnable however the volume above them is mounted.
-func ModelBacksExecutableVolume(config *Config, name string) bool {
-	for _, volume := range config.Volumes {
-		if !volume.Exec {
-			continue
-		}
-		if slices.ContainsFunc(volume.Overlays, func(overlay VolumeOverlay) bool { return overlay.Model == name }) {
 			return true
 		}
 	}
