@@ -27,6 +27,7 @@ const (
 	maxHostnameLength         = 253
 	maxBridgeNameLen          = 15
 	maxVolumeOwner            = 65534
+	maxVolumeOverlays         = 8
 	debugDockerSocketBind     = "/run/docker.sock:/var/run/docker.sock"
 	debugManagerSocketBind    = "/run/tinfoil/containers.sock:/run/tinfoil/containers.sock"
 )
@@ -45,6 +46,11 @@ var (
 	rfc1123HostnamePattern = regexp.MustCompile(`^(?i)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	modelNamePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 	volumeNamePattern      = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+
+	// An overlay source is a path inside a pack, so it may hold slashes, but
+	// every segment begins with a non-dot to keep out `.` and `..`, and the
+	// character class keeps out the comma and colon that delimit mount options.
+	overlaySourcePattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`)
 )
 
 func Validate(config *Config, options Options) error {
@@ -68,6 +74,10 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 	if disks := len(config.Models) + len(config.Volumes); disks > MaxModelDisks {
 		return nil, fmt.Errorf("models and volumes must declare at most %d disks (got %d)", MaxModelDisks, disks)
 	}
+	execModels := make(map[string]bool, len(config.Models))
+	for _, model := range config.Models {
+		execModels[model.Name] = model.Exec
+	}
 	declared := make(map[string]bool, len(config.Volumes))
 	for index, volume := range config.Volumes {
 		if !volumeNamePattern.MatchString(volume.Name) {
@@ -79,9 +89,41 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if volume.Owner < 0 || volume.Owner > maxVolumeOwner {
 			return nil, fmt.Errorf("volumes[%d].owner must be between 0 and %d (got %d)", index, maxVolumeOwner, volume.Owner)
 		}
+		if err := validateVolumeOverlays(index, &volume, execModels); err != nil {
+			return nil, err
+		}
 		declared[volume.Name] = true
 	}
 	return declared, nil
+}
+
+func validateVolumeOverlays(index int, volume *VolumeSpec, execModels map[string]bool) error {
+	if len(volume.Overlays) > maxVolumeOverlays {
+		return fmt.Errorf("volumes[%d] declares more than %d overlays", index, maxVolumeOverlays)
+	}
+	if len(volume.Overlays) > 0 && !volume.Exec {
+		return fmt.Errorf("volumes[%d] has overlays but is not exec", index)
+	}
+	targets := make(map[string]bool, len(volume.Overlays))
+	for overlayIndex, overlay := range volume.Overlays {
+		if !modelNamePattern.MatchString(overlay.Model) || !execModels[overlay.Model] {
+			return fmt.Errorf("volumes[%d].overlays[%d] references unknown or non-exec model %q", index, overlayIndex, overlay.Model)
+		}
+		if !overlaySourcePattern.MatchString(overlay.Source) {
+			return fmt.Errorf("volumes[%d].overlays[%d].source %q is not a pack-relative path", index, overlayIndex, overlay.Source)
+		}
+		// The target names a directory this volume's worker creates and mounts
+		// on, so it stays a single segment: no separator can traverse out of the
+		// volume, and no intermediate component can be a planted symlink.
+		if !volumeNamePattern.MatchString(overlay.Target) {
+			return fmt.Errorf("volumes[%d].overlays[%d].target %q must be a single lowercase name", index, overlayIndex, overlay.Target)
+		}
+		if targets[overlay.Target] {
+			return fmt.Errorf("volumes[%d].overlays[%d].target %q is declared twice", index, overlayIndex, overlay.Target)
+		}
+		targets[overlay.Target] = true
+	}
+	return nil
 }
 
 func validateShape(config *Config, volumes map[string]bool, options Options) error {
