@@ -89,6 +89,9 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if volume.Owner < 0 || volume.Owner > maxVolumeOwner {
 			return nil, fmt.Errorf("volumes[%d].owner must be between 0 and %d (got %d)", index, maxVolumeOwner, volume.Owner)
 		}
+		if volume.KeySecret != "" && !validEnvironmentName(volume.KeySecret) {
+			return nil, fmt.Errorf("volumes[%d].key-secret has invalid secret name %q", index, volume.KeySecret)
+		}
 		if err := validateVolumeOverlays(index, &volume, execModels); err != nil {
 			return nil, err
 		}
@@ -145,7 +148,7 @@ func validateShape(config *Config, volumes map[string]bool, options Options) err
 		}
 	}
 	seen := map[string]int{}
-	modelKeys := map[string]int{}
+	keySecrets := map[string]string{}
 	for index, model := range config.Models {
 		if model.Schema < 0 {
 			return fmt.Errorf("models[%d].schema must be a positive integer", index)
@@ -156,7 +159,12 @@ func validateShape(config *Config, volumes map[string]bool, options Options) err
 		if !validEnvironmentName(model.KeySecret) {
 			return fmt.Errorf("models[%d].key-secret has invalid secret name %q", index, model.KeySecret)
 		}
-		modelKeys[model.KeySecret] = index
+		keySecrets[model.KeySecret] = fmt.Sprintf("models[%d]", index)
+	}
+	for index, volume := range config.Volumes {
+		if volume.KeySecret != "" {
+			keySecrets[volume.KeySecret] = fmt.Sprintf("volumes[%d]", index)
+		}
 	}
 	for index := range config.Containers {
 		container := &config.Containers[index]
@@ -168,8 +176,8 @@ func validateShape(config *Config, volumes map[string]bool, options Options) err
 			return err
 		}
 		for secretIndex, secret := range container.Secrets {
-			if modelIndex, found := modelKeys[secret]; found {
-				return fmt.Errorf("containers[%d].secrets[%d] %q exposes models[%d].key-secret", index, secretIndex, secret, modelIndex)
+			if owner, found := keySecrets[secret]; found {
+				return fmt.Errorf("containers[%d].secrets[%d] %q exposes %s.key-secret", index, secretIndex, secret, owner)
 			}
 		}
 	}

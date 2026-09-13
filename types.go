@@ -85,10 +85,11 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type VolumeSpec struct {
-	Name     string          `yaml:"name"`
-	Exec     bool            `yaml:"exec,omitempty"`
-	Owner    int             `yaml:"owner,omitempty"`
-	Overlays []VolumeOverlay `yaml:"overlays,omitempty"`
+	Name      string          `yaml:"name"`
+	Exec      bool            `yaml:"exec,omitempty"`
+	Owner     int             `yaml:"owner,omitempty"`
+	KeySecret string          `yaml:"key-secret,omitempty"`
+	Overlays  []VolumeOverlay `yaml:"overlays,omitempty"`
 }
 
 // VolumeOverlay stacks a model pack under a writable directory on the volume:
