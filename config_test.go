@@ -43,7 +43,10 @@ func TestDecodeValidation(t *testing.T) {
 		{name: "volume name rejected", yaml: validConfig + "volumes:\n  - name: State\n", want: "must be lowercase alphanumeric"},
 		{name: "volume owner rejected", yaml: validConfig + "volumes:\n  - name: state\n    owner: 70000\n", want: "owner must be between"},
 		{name: "volume declared twice", yaml: validConfig + "volumes:\n  - name: state\n  - name: state\n", want: "declared twice"},
-		{name: "unknown volume field", yaml: validConfig + "volumes:\n  - name: state\n    size: 10\n", want: "field size not found"},
+		{name: "unknown volume field", yaml: validConfig + "volumes:\n  - name: state\n    sized: 10\n", want: "field sized not found"},
+		{name: "volume size accepted", yaml: validConfig + "volumes:\n  - name: state\n    size: 500GiB\n"},
+		{name: "volume size without unit", yaml: validConfig + "volumes:\n  - name: state\n    size: 10\n", want: "needs a unit"},
+		{name: "volume size too small", yaml: validConfig + "volumes:\n  - name: state\n    size: 4MiB\n", want: "below the minimum"},
 		{name: "multiple documents", yaml: validConfig + "\n---\n{}\n", want: "multiple YAML documents"},
 		{name: "model schema accepted", yaml: validConfig + "models:\n  - repo: org/model@revision\n    schema: 2\n"},
 		{name: "negative model schema", yaml: validConfig + "models:\n  - repo: org/model@revision\n    schema: -1\n", want: "schema must be a positive integer"},
@@ -135,5 +138,30 @@ func TestDecodeShimRejectsNilNode(t *testing.T) {
 	_, err := DecodeShim(nil)
 	if err == nil || !strings.Contains(err.Error(), "missing YAML document") {
 		t.Fatalf("error = %v, want missing YAML document", err)
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	for text, want := range map[string]int64{
+		"30GiB": 30 << 30, "16TB": 16_000_000_000_000, "1.5T": 3 << 39, "512m": 512 << 20,
+		" 64 MiB ": 64 << 20, "2tib": 2 << 40, "1000000000B": 1_000_000_000,
+	} {
+		got, err := ParseSize(text)
+		if err != nil || got != want {
+			t.Errorf("ParseSize(%q) = %d, %v; want %d", text, got, err, want)
+		}
+	}
+	for text, want := range map[string]string{
+		"": "empty", "10": "needs a unit", "GiB": "no number", "-1GiB": "positive", "0GiB": "positive",
+		"1.5KB": "multiple of 512", "1PB": "unknown unit", "32MiB": "below the minimum", "1.0000001GiB": "whole number",
+		"99999999999TiB": "too large",
+	} {
+		if _, err := ParseSize(text); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("ParseSize(%q) error = %v; want substring %q", text, err, want)
+		}
+	}
+	spec := VolumeSpec{Name: "state"}
+	if n, err := spec.SizeBytes(); n != 0 || err != nil {
+		t.Errorf("empty size should mean the host default, got %d, %v", n, err)
 	}
 }

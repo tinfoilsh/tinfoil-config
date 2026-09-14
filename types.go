@@ -90,6 +90,20 @@ type VolumeSpec struct {
 	Owner     int             `yaml:"owner,omitempty"`
 	KeySecret string          `yaml:"key-secret,omitempty"`
 	Overlays  []VolumeOverlay `yaml:"overlays,omitempty"`
+	// Size is the capacity of the disk backing the volume, such as "500GiB"
+	// or "16TB" (see ParseSize). Empty leaves the size to the host's default.
+	// The host allocates the disk once, on first launch; changing the size
+	// afterwards does not resize it.
+	Size string `yaml:"size,omitempty"`
+}
+
+// SizeBytes returns the declared Size in bytes, or 0 when the host default
+// applies.
+func (v *VolumeSpec) SizeBytes() (int64, error) {
+	if v.Size == "" {
+		return 0, nil
+	}
+	return ParseSize(v.Size)
 }
 
 // VolumeOverlay stacks a model pack under a writable directory on the volume:

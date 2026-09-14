@@ -92,6 +92,9 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if volume.KeySecret != "" && !validEnvironmentName(volume.KeySecret) {
 			return nil, fmt.Errorf("volumes[%d].key-secret has invalid secret name %q", index, volume.KeySecret)
 		}
+		if _, err := volume.SizeBytes(); err != nil {
+			return nil, fmt.Errorf("volumes[%d].size: %w", index, err)
+		}
 		if err := validateVolumeOverlays(index, &volume, execModels); err != nil {
 			return nil, err
 		}
