@@ -28,3 +28,18 @@ invalid input.
 Plaintext models without a `containers[].models` grant retain the legacy shared
 mount behavior. Granted models use isolated named mounts; encrypted models
 always require at least one explicit container grant.
+
+## CVM source
+
+`cvm-source` names the GitHub repository whose release carries the image
+manifest and attestation, and the https base URL that serves its kernel,
+initrd, and raw disk:
+
+```yaml
+cvm-source:
+  repo: tinfoilsh/cvmimage-sandbox
+  artifacts: https://images.example.com/cvm
+```
+
+Both fields are required when the block is present. Without it,
+`tinfoilsh/cvmimage` and `https://images.tinfoil.sh/cvm` apply.
