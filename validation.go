@@ -363,7 +363,7 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 		return fmt.Errorf("containers[%d].runtime nvidia requires an explicit gpus selection", index)
 	}
 	for volumeIndex, volume := range container.Volumes {
-		if (container.CVMAdmin || ReservedDebugRuntimeEnabled(container.Name, options)) && (volume == debugDockerSocketBind || volume == debugManagerSocketBind) {
+		if ReservedDebugRuntimeEnabled(container.Name, options) && (volume == debugDockerSocketBind || volume == debugManagerSocketBind) {
 			continue
 		}
 		source, target, found := strings.Cut(volume, ":")
