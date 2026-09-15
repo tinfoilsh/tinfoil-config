@@ -327,6 +327,14 @@ func validateContainerImage(index int, image string) error {
 }
 
 func validateContainerPolicy(index int, container *Container, availableGPUs int, volumes map[string]bool, options Options) error {
+	if container.CVMAdmin {
+		if !slices.Contains([]string{"", "0", "0:0", "root", "root:root"}, container.User) {
+			return fmt.Errorf("containers[%d].cvm_admin requires root user", index)
+		}
+		if len(container.Networks) != 0 || len(container.Ports) != 0 {
+			return fmt.Errorf("containers[%d].cvm_admin uses host networking; networks and ports must be omitted (use cvm-network.inbound-ports for ingress)", index)
+		}
+	}
 	if container.inputFields.privileged {
 		return fmt.Errorf("containers[%d].privileged is unsupported", index)
 	}
@@ -358,7 +366,7 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 		return fmt.Errorf("containers[%d].runtime nvidia requires an explicit gpus selection", index)
 	}
 	for volumeIndex, volume := range container.Volumes {
-		if ReservedDebugRuntimeEnabled(container.Name, options) && (volume == debugDockerSocketBind || volume == debugManagerSocketBind) {
+		if (container.CVMAdmin || ReservedDebugRuntimeEnabled(container.Name, options)) && (volume == debugDockerSocketBind || volume == debugManagerSocketBind) {
 			continue
 		}
 		source, target, found := strings.Cut(volume, ":")
