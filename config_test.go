@@ -79,6 +79,57 @@ func TestDecodeSetsDefaults(t *testing.T) {
 	}
 }
 
+func TestCVMAdminPolicy(t *testing.T) {
+	admin := strings.Replace(validConfig, "    networks: [app]", "    cvm_admin: true", 1)
+	for _, test := range []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{name: "admin", yaml: admin},
+		{name: "explicit root", yaml: admin + "    user: '0:0'\n"},
+		{name: "read only opt in", yaml: admin + "    read_only: true\n"},
+		{name: "no host Docker socket", yaml: admin + "    volumes: [/run/docker.sock:/var/run/docker.sock]\n", want: "must name a volume declared"},
+		{name: "no host manager socket", yaml: admin + "    volumes: [/run/tinfoil/containers.sock:/run/tinfoil/containers.sock]\n", want: "must name a volume declared"},
+		{name: "attached volume", yaml: admin + "    volumes: [workspace:/run/tinfoil/volumedata/workspace]\nvolumes:\n  - name: workspace\n    exec: true\n"},
+		{name: "non root", yaml: admin + "    user: '1000'\n", want: "requires root user"},
+		{name: "non root group", yaml: admin + "    user: '0:1000'\n", want: "requires root user"},
+		{name: "bridge", yaml: admin + "    networks: [app]\n"},
+		{name: "SSH port mapping", yaml: admin + "    networks: [app]\n    ports: ['2022:2222']\n"},
+		{name: "port without network", yaml: admin + "    ports: ['2022:2222']\n", want: "requires an attached network"},
+		{name: "reserved host port", yaml: admin + "    networks: [app]\n    ports: ['2222:2222']\n", want: "reserved"},
+		{name: "undeclared network", yaml: admin + "    networks: [missing]\n", want: "not declared"},
+		{name: "undeclared volume", yaml: admin + "    volumes: [missing:/workspace]\n", want: "must name a volume declared"},
+		{name: "arbitrary host bind", yaml: admin + "    volumes: [/etc:/etc]\n", want: "must name a volume declared"},
+		{name: "mutable image", yaml: strings.Replace(admin, "@sha256:"+strings.Repeat("a", 64), ":latest", 1), want: "immutable digest"},
+		{name: "unknown field", yaml: admin + "    typo: true\n", want: "unknown container field"},
+		{name: "duplicate flag", yaml: admin + "    cvm_admin: false\n", want: "duplicate container field"},
+		{name: "invalid flag", yaml: strings.Replace(admin, "cvm_admin: true", "cvm_admin: invalid", 1), want: "cannot unmarshal"},
+		{name: "not generic privileged syntax", yaml: admin + "    privileged: true\n", want: "privileged is unsupported"},
+		{name: "false keeps socket closed", yaml: strings.Replace(admin, "cvm_admin: true", "cvm_admin: false", 1) + "    volumes: [/run/docker.sock:/var/run/docker.sock]\n", want: "must name a volume declared"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := Decode([]byte(test.yaml), Options{})
+			if test.want != "" {
+				if err == nil || !strings.Contains(err.Error(), test.want) {
+					t.Fatalf("error = %v, want substring %q", err, test.want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.Containers[0].CVMAdmin {
+				t.Fatal("admin permission lost during decode")
+			}
+		})
+	}
+	cfg, err := Decode([]byte(validConfig), Options{})
+	if err != nil || cfg.Containers[0].CVMAdmin {
+		t.Fatalf("ordinary config acquired admin permission: cfg=%+v err=%v", cfg, err)
+	}
+}
+
 func TestDecodeValidatesModelAccess(t *testing.T) {
 	const ref = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_4096_0eefa619-50b7-588f-a072-d405fb439d36"
 	base := strings.Replace(validConfig,

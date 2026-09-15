@@ -327,6 +327,11 @@ func validateContainerImage(index int, image string) error {
 }
 
 func validateContainerPolicy(index int, container *Container, availableGPUs int, volumes map[string]bool, options Options) error {
+	if container.CVMAdmin {
+		if !slices.Contains([]string{"", "0", "0:0", "root", "root:root"}, container.User) {
+			return fmt.Errorf("containers[%d].cvm_admin requires root user", index)
+		}
+	}
 	if container.inputFields.privileged {
 		return fmt.Errorf("containers[%d].privileged is unsupported", index)
 	}
