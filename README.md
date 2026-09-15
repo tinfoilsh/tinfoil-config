@@ -32,11 +32,14 @@ always require at least one explicit container grant.
 ## CVM administration
 
 `containers[].cvm_admin: true` opts into a fixed CVM-wide administrative profile:
-UID/GID 0, privileged container execution, host PID and network namespaces,
+UID/GID 0, privileged container execution, the host PID namespace,
 no-new-privileges disabled, the CVM filesystem at `/host`, and the Docker socket
 at `/var/run/docker.sock`. The container rootfs defaults to writable; an explicit
-`read_only: true` is still honored. Omit `networks` and `ports`; services bind
-directly to CVM ports, with ingress declared in `cvm-network.inbound-ports`.
+`read_only: true` is still honored. Networking is unchanged: declare bridge
+`networks` and `ports` as usual. For example, an `egress: open` network and
+`ports: ["2022:2222"]` provide Internet access and SSH over the shim's attested
+CONNECT tunnel, without host networking or direct SSH ingress. Containers
+launched through Docker must join the declared network to use its egress policy.
 
 The flag defaults to false and is part of the measured YAML. It does not enable
 debug mode or change keyserver/attestation policy. Anyone controlling an admin
