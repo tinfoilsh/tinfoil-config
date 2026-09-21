@@ -70,3 +70,56 @@ cvm-source:
 
 Both fields are required when the block is present. Without it,
 `tinfoilsh/cvmimage` and `https://images.tinfoil.sh/cvm` apply.
+
+## Attested boot keys
+
+Starting with the planned official CVM 0.15.0 release:
+
+```yaml
+cvm-version: 0.15.0
+attested-keys:
+  - id: host-ssh
+    key: ecdsa-p256
+containers:
+  - name: workspace
+    keys: [host-ssh]
+    # Image and other required configuration omitted.
+```
+
+Supported algorithms are `ecdsa-p256`, `ed25519`, and `x25519` (agreement only).
+Each of up to 32 declarations requires exactly one container grant; sharing,
+duplicates, unknown IDs and reserved `tls`/`hpke` IDs reject. Optional numeric
+`uid`/`gid` default to root and range from 0 to 65534. The runtime mounts
+`/run/tinfoil/keys/<id>/private_key.pem` (PKCS#8) and `public_key.pem` (SPKI)
+read-only from private volatile storage. Private files are owner-only. A `/run`
+tmpfs is allowed; mounts replacing the generated key subtree are rejected.
+
+Keys are generated once per CVM boot, reused on container/shim restart, and
+rotated on reboot. V3 attestation endorses full public SPKI under the declared
+ID. Applications convert keys to their protocol's representation. There is no
+`credential` or format selector and no caller-supplied private key. An admin
+container controls the whole CVM; grants do not isolate it from other keys.
+
+## Direct admin SSH
+
+On the same supporting runtime, the conjunction below opts into one production
+SSH mapping using existing fields:
+
+```yaml
+cvm-network:
+  inbound-ports: [22]
+containers:
+  - name: workspace
+    cvm_admin: true
+    networks: [dev]
+    ports: ["22:22"]
+```
+
+`AdminSSH(cfg)` resolves the unique opted-in mapping; nil means none. The guest
+publishes only this SSH port externally and permits the corresponding forwarded
+traffic. The host allocates its own public SSH port and forwards it to CVM port
+22. Other published ports retain their existing private behavior. This requires
+updated cvmimage and tinfoild implementations; the schema alone does not expose
+a port. Production stays non-debug, while the debug profile keeps its existing
+toolbox target. Custom CVM sources use their own version namespace and their
+publishers are responsible for implementing these contracts.

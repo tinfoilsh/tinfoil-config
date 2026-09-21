@@ -72,7 +72,14 @@ func Validate(config *Config, options Options) error {
 	if err := validateShape(config, volumes, options); err != nil {
 		return err
 	}
-	return validateNetwork(config)
+	if err := validateNetwork(config); err != nil {
+		return err
+	}
+	if err := ValidateAttestedKeys(config); err != nil {
+		return err
+	}
+	_, err = AdminSSH(config)
+	return err
 }
 
 func validateVolumes(config *Config) (map[string]bool, error) {
@@ -199,6 +206,7 @@ func validateContainer(index int, container *Container, availableGPUs int, volum
 	}{
 		{"command", len(container.Command)}, {"entrypoint", len(container.Entrypoint)}, {"env", len(container.Env)},
 		{"secrets", len(container.Secrets)}, {"models", len(container.Models)}, {"volumes", len(container.Volumes)}, {"devices", len(container.Devices)},
+		{"keys", len(container.Keys)},
 		{"cap_add", len(container.CapAdd)}, {"networks", len(container.Networks)},
 		{"ports", len(container.Ports)},
 	}
