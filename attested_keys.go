@@ -11,8 +11,8 @@ import (
 const (
 	MaxAttestedKeys          = 32
 	AttestedKeysContainerDir = "/run/tinfoil/keys"
-	// MinCVMVersionAttestedKeys is the planned first official runtime release
-	// implementing boot keys and the explicit admin SSH opt-in.
+	// MinCVMVersionAttestedKeys is the minimum official CVM version for
+	// attested keys and direct admin SSH.
 	MinCVMVersionAttestedKeys = "0.15.0"
 	KeyECDSAP256              = "ecdsa-p256"
 	KeyEd25519                = "ed25519"
