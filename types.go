@@ -10,6 +10,10 @@ const (
 	ReservedDebugContainerName = "tinfoil-debug-toolbox"
 	ReservedDebugPort          = "2222/tcp"
 	ReservedDebugHostPort      = 2222
+	AttestedKeysContainerDir   = "/run/tinfoil/keys"
+	KeyECDSAP256               = "ecdsa-p256"
+	KeyEd25519                 = "ed25519"
+	KeyX25519                  = "x25519"
 )
 
 // ValidationMode selects which producer is allowed to construct the config.
@@ -145,6 +149,16 @@ type ModelSpec struct {
 	// Schema is the pack schema the pinned artifact was built with (0 = schema 1,
 	// the original layout). Declarative for now; no consumer reads it yet.
 	Schema int `yaml:"schema,omitempty"`
+}
+
+// AttestedKey declares a boot-generated key. The runtime exports PKCS#8 private
+// and SPKI public PEM, and endorses full public SPKI DER in v3 attestation.
+// UID and GID are measured numeric file ownership, defaulting to root.
+type AttestedKey struct {
+	ID  string `yaml:"id" json:"id"`
+	Key string `yaml:"key" json:"key"`
+	UID int    `yaml:"uid,omitempty" json:"uid"`
+	GID int    `yaml:"gid,omitempty" json:"gid"`
 }
 
 type Container struct {

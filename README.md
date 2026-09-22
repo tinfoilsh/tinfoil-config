@@ -57,7 +57,6 @@ Both fields are required when the block is present. Without it,
 Declare keys and assign each to a container:
 
 ```yaml
-cvm-version: 0.15.0
 attested-keys:
   - id: host-ssh
     key: ecdsa-p256
@@ -77,6 +76,3 @@ Each grant provides read-only files at `/run/tinfoil/keys/<id>/`: owner-only
 allowed; mounts overlapping the key subtree are rejected. Keys last for one
 CVM boot, surviving container and shim restarts. V3 attestation endorses their
 public SPKI under the declared ID. Applications handle protocol-specific formats.
-
-Attested keys and direct admin SSH require `cvm-version` 0.15.0 or later for the
-default CVM source. Custom sources use their own version namespace.

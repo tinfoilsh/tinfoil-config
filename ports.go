@@ -40,13 +40,9 @@ type AdminSSHMapping struct {
 // 22:22 mapping. It returns nil when no mapping is enabled. Callers must use a
 // validated config and suppress this mapping in the debug-toolbox profile.
 func AdminSSH(config *Config) (*AdminSSHMapping, error) {
-	if config == nil {
-		return nil, fmt.Errorf("missing config")
-	}
 	if !slices.Contains(config.CVMNetwork.InboundPorts, AdminSSHGuestPort) {
 		return nil, nil
 	}
-	var selected *AdminSSHMapping
 	for _, container := range config.Containers {
 		if !container.CVMAdmin {
 			continue
@@ -59,21 +55,13 @@ func AdminSSH(config *Config) (*AdminSSHMapping, error) {
 			if mapping.Host != AdminSSHGuestPort {
 				continue
 			}
-			if mapping.Container != AdminSSHGuestPort || len(container.Networks) == 0 {
-				return nil, fmt.Errorf("direct admin SSH requires 22:22 on an attached container network")
+			if mapping.Container != AdminSSHGuestPort {
+				return nil, fmt.Errorf("direct admin SSH requires 22:22")
 			}
-			if selected != nil {
-				return nil, fmt.Errorf("direct admin SSH requires one unique container mapping")
-			}
-			selected = &AdminSSHMapping{Container: container.Name, GuestPort: mapping.Host, ContainerPort: mapping.Container}
+			return &AdminSSHMapping{Container: container.Name, GuestPort: mapping.Host, ContainerPort: mapping.Container}, nil
 		}
 	}
-	if selected != nil {
-		if err := requireAttestedKeysRuntime(config); err != nil {
-			return nil, err
-		}
-	}
-	return selected, nil
+	return nil, nil
 }
 
 func parsePort(field string) int {

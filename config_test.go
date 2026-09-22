@@ -220,7 +220,7 @@ func TestParseSize(t *testing.T) {
 }
 
 func keyConfig() string {
-	return strings.Replace(validConfig, "0.11.0", MinCVMVersionAttestedKeys, 1) +
+	return validConfig +
 		"    keys: [host-ssh]\nattested-keys:\n  - id: host-ssh\n    key: ecdsa-p256\n"
 }
 
@@ -231,9 +231,6 @@ func TestAttestedKeyConfig(t *testing.T) {
 		{"ed25519", strings.Replace(valid, "ecdsa-p256", "ed25519", 1), ""},
 		{"x25519", strings.Replace(valid, "ecdsa-p256", "x25519", 1), ""},
 		{"ownership", valid + "    uid: 1000\n    gid: 1001\n", ""},
-		{"old runtime", strings.Replace(valid, MinCVMVersionAttestedKeys, "0.14.9", 1), "require official cvm-version"},
-		{"unreleased runtime", strings.Replace(valid, MinCVMVersionAttestedKeys, "0.15.0-rc1", 1), "require official cvm-version"},
-		{"next major", strings.Replace(valid, MinCVMVersionAttestedKeys, "1.0.0", 1), ""},
 		{"missing id", strings.ReplaceAll(valid, "host-ssh", ""), "safe lowercase"},
 		{"reserved tls", strings.ReplaceAll(valid, "host-ssh", "tls"), "safe lowercase"},
 		{"reserved hpke", strings.ReplaceAll(valid, "host-ssh", "hpke"), "safe lowercase"},
@@ -302,14 +299,13 @@ func TestAttestedKeyLimitsAndSharing(t *testing.T) {
 }
 
 func TestAdminSSH(t *testing.T) {
-	base := strings.Replace(validConfig, "0.11.0", MinCVMVersionAttestedKeys, 1) + "    cvm_admin: true\n    ports: ['22:22', '3000:3000']\ncvm-network:\n  inbound-ports: [22]\n"
+	base := validConfig + "    cvm_admin: true\n    ports: ['22:22', '3000:3000']\ncvm-network:\n  inbound-ports: [22]\n"
 	for _, tc := range []struct {
 		name, input string
 		enabled     bool
 		want        string
 	}{
 		{"enabled", base, true, ""},
-		{"old image", strings.Replace(base, MinCVMVersionAttestedKeys, "0.14.9", 1), false, "require official cvm-version"},
 		{"no inbound opt-in", strings.Replace(base, "inbound-ports: [22]", "inbound-ports: []", 1), false, ""},
 		{"ordinary container", strings.Replace(base, "cvm_admin: true", "cvm_admin: false", 1), false, ""},
 		{"different published port", strings.Replace(base, "'22:22'", "'2022:22'", 1), false, ""},
