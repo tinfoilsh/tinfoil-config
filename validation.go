@@ -8,6 +8,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/distribution/reference"
@@ -233,6 +234,7 @@ func validateShape(config *Config, volumes map[string]bool, options Options) err
 		}
 	}
 	seen := map[string]int{}
+	sealOwner := -1
 	keySecrets := map[string]string{}
 	for index, model := range config.Models {
 		if model.Schema < 0 {
@@ -257,6 +259,12 @@ func validateShape(config *Config, volumes map[string]bool, options Options) err
 			return fmt.Errorf("containers[%d].name %q duplicates containers[%d].name", index, container.Name, prior)
 		}
 		seen[container.Name] = index
+		if container.SealRegister {
+			if sealOwner >= 0 {
+				return fmt.Errorf("containers[%d].seal_register duplicates containers[%d].seal_register", index, sealOwner)
+			}
+			sealOwner = index
+		}
 		if err := validateContainer(index, container, config.GPUs, volumes, options); err != nil {
 			return err
 		}
@@ -408,6 +416,12 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 	if container.CVMAdmin {
 		if !slices.Contains([]string{"", "0", "0:0", "root", "root:root"}, container.User) {
 			return fmt.Errorf("containers[%d].cvm_admin requires root user", index)
+		}
+	}
+	if container.SealRegister {
+		uid, _, _ := strings.Cut(container.User, ":")
+		if _, err := strconv.ParseUint(uid, 10, 32); err != nil {
+			return fmt.Errorf("containers[%d].seal_register requires a numeric uid in user", index)
 		}
 	}
 	if container.inputFields.privileged {
