@@ -2,6 +2,7 @@ package tinfoilconfig
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -24,6 +25,43 @@ func ParsePorts(ports []string) ([]PortMapping, error) {
 		parsed = append(parsed, mapping)
 	}
 	return parsed, nil
+}
+
+const AdminSSHGuestPort = 22
+
+// AdminSSHMapping identifies the direct admin SSH mapping.
+type AdminSSHMapping struct {
+	Container     string
+	GuestPort     int
+	ContainerPort int
+}
+
+// AdminSSH resolves direct SSH from inbound port 22 and an admin container's
+// 22:22 mapping. It returns nil when no mapping is enabled. Callers must use a
+// validated config and suppress this mapping in the debug-toolbox profile.
+func AdminSSH(config *Config) (*AdminSSHMapping, error) {
+	if !slices.Contains(config.CVMNetwork.InboundPorts, AdminSSHGuestPort) {
+		return nil, nil
+	}
+	for _, container := range config.Containers {
+		if !container.CVMAdmin {
+			continue
+		}
+		ports, err := ParsePorts(container.Ports)
+		if err != nil {
+			return nil, err
+		}
+		for _, mapping := range ports {
+			if mapping.Host != AdminSSHGuestPort {
+				continue
+			}
+			if mapping.Container != AdminSSHGuestPort {
+				return nil, fmt.Errorf("direct admin SSH requires 22:22")
+			}
+			return &AdminSSHMapping{Container: container.Name, GuestPort: mapping.Host, ContainerPort: mapping.Container}, nil
+		}
+	}
+	return nil, nil
 }
 
 func parsePort(field string) int {

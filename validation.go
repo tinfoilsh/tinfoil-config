@@ -16,6 +16,7 @@ import (
 
 const (
 	MaxModelDisks             = 24
+	MaxAttestedKeys           = 32
 	reservedShimNetworkName   = "shim-net"
 	maxConfigContainers       = 64
 	maxConfigModels           = 64
@@ -48,6 +49,7 @@ var (
 	rfc1123HostnamePattern = regexp.MustCompile(`^(?i)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	modelNamePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 	volumeNamePattern      = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+	attestedKeyIDPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 	cvmSourceRepoPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_][A-Za-z0-9._-]*$`)
 
 	// An overlay source is a path inside a pack, so it may hold slashes, but
@@ -73,7 +75,82 @@ func Validate(config *Config, options Options) error {
 	if err := validateShape(config, volumes, options); err != nil {
 		return err
 	}
-	return validateNetwork(config)
+	if err := validateNetwork(config); err != nil {
+		return err
+	}
+	if err := ValidateAttestedKeys(config); err != nil {
+		return err
+	}
+	_, err = AdminSSH(config)
+	return err
+}
+
+// ValidateAttestedKeys checks declarations, exclusive grants, ownership and
+// generated mount destinations. It is also used by the boot key store before
+// deriving filesystem paths from a config.
+func ValidateAttestedKeys(config *Config) error {
+	if len(config.AttestedKeys) > MaxAttestedKeys {
+		return fmt.Errorf("attested-keys exceeds limit %d", MaxAttestedKeys)
+	}
+	declared := make(map[string]bool, len(config.AttestedKeys))
+	for i, key := range config.AttestedKeys {
+		if !attestedKeyIDPattern.MatchString(key.ID) || key.ID == "tls" || key.ID == "hpke" {
+			return fmt.Errorf("attested-keys[%d].id %q must be a safe lowercase name other than tls or hpke", i, key.ID)
+		}
+		if declared[key.ID] {
+			return fmt.Errorf("attested-keys id %q is declared twice", key.ID)
+		}
+		declared[key.ID] = true
+		switch key.Key {
+		case KeyECDSAP256, KeyEd25519, KeyX25519:
+		default:
+			return fmt.Errorf("attested-keys[%d].key %q is unsupported", i, key.Key)
+		}
+		if key.UID < 0 || key.UID > 65534 || key.GID < 0 || key.GID > 65534 {
+			return fmt.Errorf("attested-keys[%d] uid and gid must be between 0 and 65534", i)
+		}
+	}
+	granted := make(map[string]string, len(declared))
+	for _, container := range config.Containers {
+		for _, id := range container.Keys {
+			if !declared[id] {
+				return fmt.Errorf("container %q grants unknown attested key %q", container.Name, id)
+			}
+			if prior, ok := granted[id]; ok {
+				return fmt.Errorf("attested key %q is already granted to %q (duplicate or shared grant)", id, prior)
+			}
+			granted[id] = container.Name
+		}
+		if len(container.Keys) == 0 {
+			continue
+		}
+		// Protect generated destinations in containers receiving keys.
+		// Parent tmpfs /run is supported: Docker mounts nested key binds after it.
+		for target := range container.Tmpfs {
+			if overlapsKeyDir(target) && path.Clean(target) != "/run" {
+				return fmt.Errorf("container %q tmpfs %q conflicts with attested key mounts", container.Name, target)
+			}
+		}
+		for _, volume := range container.Volumes {
+			_, target, ok := strings.Cut(volume, ":")
+			if ok && overlapsKeyDir(target) {
+				return fmt.Errorf("container %q volume target %q conflicts with attested key mounts", container.Name, target)
+			}
+		}
+	}
+	for _, key := range config.AttestedKeys {
+		if _, ok := granted[key.ID]; !ok {
+			return fmt.Errorf("attested key %q requires exactly one container grant", key.ID)
+		}
+	}
+	return nil
+}
+
+func overlapsKeyDir(target string) bool {
+	target = path.Clean(target)
+	return target == "/" || target == AttestedKeysContainerDir ||
+		strings.HasPrefix(target, AttestedKeysContainerDir+"/") ||
+		strings.HasPrefix(AttestedKeysContainerDir, target+"/")
 }
 
 func validateVolumes(config *Config) (map[string]bool, error) {
@@ -207,6 +284,7 @@ func validateContainer(index int, container *Container, availableGPUs int, volum
 	}{
 		{"command", len(container.Command)}, {"entrypoint", len(container.Entrypoint)}, {"env", len(container.Env)},
 		{"secrets", len(container.Secrets)}, {"models", len(container.Models)}, {"volumes", len(container.Volumes)}, {"devices", len(container.Devices)},
+		{"keys", len(container.Keys)},
 		{"cap_add", len(container.CapAdd)}, {"networks", len(container.Networks)},
 		{"ports", len(container.Ports)},
 	}

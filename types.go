@@ -10,6 +10,10 @@ const (
 	ReservedDebugContainerName = "tinfoil-debug-toolbox"
 	ReservedDebugPort          = "2222/tcp"
 	ReservedDebugHostPort      = 2222
+	AttestedKeysContainerDir   = "/run/tinfoil/keys"
+	KeyECDSAP256               = "ecdsa-p256"
+	KeyEd25519                 = "ed25519"
+	KeyX25519                  = "x25519"
 )
 
 // ValidationMode selects which producer is allowed to construct the config.
@@ -38,6 +42,7 @@ type Config struct {
 	GPUs         int                     `yaml:"gpus"`
 	Models       []ModelSpec             `yaml:"models"`
 	Volumes      []VolumeSpec            `yaml:"volumes"`
+	AttestedKeys []AttestedKey           `yaml:"attested-keys,omitempty"`
 	Containers   []Container             `yaml:"containers"`
 	KeyserverURL string                  `yaml:"keyserver-url,omitempty"`
 }
@@ -146,6 +151,16 @@ type ModelSpec struct {
 	Schema int `yaml:"schema,omitempty"`
 }
 
+// AttestedKey declares a boot-generated key. The runtime exports PKCS#8 private
+// and SPKI public PEM, and endorses full public SPKI DER in v3 attestation.
+// UID and GID are measured numeric file ownership, defaulting to root.
+type AttestedKey struct {
+	ID  string `yaml:"id" json:"id"`
+	Key string `yaml:"key" json:"key"`
+	UID int    `yaml:"uid,omitempty" json:"uid"`
+	GID int    `yaml:"gid,omitempty" json:"gid"`
+}
+
 type Container struct {
 	Name         string            `yaml:"name"`
 	Image        string            `yaml:"image"`
@@ -158,6 +173,7 @@ type Container struct {
 	Env          []interface{}     `yaml:"env,omitempty"`
 	Secrets      []string          `yaml:"secrets,omitempty"`
 	Models       []string          `yaml:"models,omitempty"`
+	Keys         []string          `yaml:"keys,omitempty"`
 	Volumes      []string          `yaml:"volumes,omitempty"`
 	Devices      []string          `yaml:"devices,omitempty"`
 	CapAdd       []string          `yaml:"cap_add,omitempty"`
@@ -188,7 +204,7 @@ type containerInputFields struct {
 
 var containerFields = map[string]bool{
 	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "command": true, "entrypoint": true,
-	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true,
+	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
 	"volumes": true, "devices": true, "cap_add": true, "runtime": true,
 	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,
 	"shm_size": true, "memory": true, "cpus": true, "tmpfs": true,
