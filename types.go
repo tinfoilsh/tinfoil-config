@@ -166,6 +166,7 @@ type Container struct {
 	Image        string            `yaml:"image"`
 	CVMAdmin     bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
 	SealRegister bool              `yaml:"seal_register,omitempty"`
+	Attestation  bool              `yaml:"attestation,omitempty"`
 	Command      []string          `yaml:"command,omitempty"`
 	Entrypoint   []string          `yaml:"entrypoint,omitempty"`
 	WorkingDir   string            `yaml:"working_dir,omitempty"`
@@ -203,7 +204,7 @@ type containerInputFields struct {
 }
 
 var containerFields = map[string]bool{
-	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "command": true, "entrypoint": true,
+	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
 	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
 	"volumes": true, "devices": true, "cap_add": true, "runtime": true,
 	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,

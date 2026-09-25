@@ -81,6 +81,40 @@ func TestDecodeSetsDefaults(t *testing.T) {
 	}
 }
 
+func TestContainerAttestation(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		fields  string
+		want    bool
+		wantErr string
+	}{
+		{name: "absent"},
+		{name: "disabled", fields: "    attestation: false\n"},
+		{name: "enabled", fields: "    attestation: true\n", want: true},
+		{name: "invalid string", fields: "    attestation: invalid\n", wantErr: "cannot unmarshal"},
+		{name: "number", fields: "    attestation: 1\n", wantErr: "cannot unmarshal"},
+		{name: "sequence", fields: "    attestation: []\n", wantErr: "cannot unmarshal"},
+		{name: "mapping", fields: "    attestation: {}\n", wantErr: "cannot unmarshal"},
+		{name: "duplicate", fields: "    attestation: true\n    attestation: false\n", wantErr: "duplicate container field"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := Decode([]byte(validConfig+test.fields), Options{})
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want substring %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Containers[0].Attestation; got != test.want {
+				t.Fatalf("attestation = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestCVMAdminPolicy(t *testing.T) {
 	admin := strings.Replace(validConfig, "    networks: [app]", "    cvm_admin: true", 1)
 	for _, test := range []struct {
