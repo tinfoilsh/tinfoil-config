@@ -25,6 +25,11 @@ invalid input.
 `containers[].models` grants isolated named model mounts. Encrypted models
 require an explicit grant; plaintext models without grants use shared mounts.
 
+## Local attestation
+
+`containers[].attestation: true` grants access to the local attestation socket.
+Access defaults to false.
+
 ## CVM administration
 
 `containers[].cvm_admin: true` grants administration of the entire CVM, including
