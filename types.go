@@ -2,6 +2,8 @@ package tinfoilconfig
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -107,8 +109,7 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 type VolumeSpec struct {
 	Name      string          `yaml:"name"`
 	Exec      bool            `yaml:"exec,omitempty"`
-	UID       int             `yaml:"uid,omitempty"`
-	GID       int             `yaml:"gid,omitempty"`
+	Owner     string          `yaml:"owner,omitempty"`
 	KeySecret string          `yaml:"key-secret,omitempty"`
 	Overlays  []VolumeOverlay `yaml:"overlays,omitempty"`
 	// Size is the capacity of the disk backing the volume, such as "500GiB"
@@ -125,6 +126,21 @@ func (v *VolumeSpec) SizeBytes() (int64, error) {
 		return 0, nil
 	}
 	return ParseSize(v.Size)
+}
+
+// OwnerIDs returns the uid and gid declared as Owner "uid:gid", or root when
+// Owner is empty.
+func (v *VolumeSpec) OwnerIDs() (uid, gid int, err error) {
+	if v.Owner == "" {
+		return 0, 0, nil
+	}
+	uidText, gidText, found := strings.Cut(v.Owner, ":")
+	uid, uidErr := strconv.Atoi(uidText)
+	gid, gidErr := strconv.Atoi(gidText)
+	if !found || uidErr != nil || gidErr != nil || uid < 0 || uid > maxVolumeOwner || gid < 0 || gid > maxVolumeOwner {
+		return 0, 0, fmt.Errorf("owner %q must be uid:gid, each between 0 and %d", v.Owner, maxVolumeOwner)
+	}
+	return uid, gid, nil
 }
 
 // VolumeOverlay stacks a model pack under a writable directory on the volume:

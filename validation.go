@@ -170,8 +170,8 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if declared[volume.Name] {
 			return nil, fmt.Errorf("volumes[%d].name %q is declared twice", index, volume.Name)
 		}
-		if volume.UID < 0 || volume.UID > maxVolumeOwner || volume.GID < 0 || volume.GID > maxVolumeOwner {
-			return nil, fmt.Errorf("volumes[%d].uid and gid must be between 0 and %d (got %d:%d)", index, maxVolumeOwner, volume.UID, volume.GID)
+		if _, _, err := volume.OwnerIDs(); err != nil {
+			return nil, fmt.Errorf("volumes[%d].%w", index, err)
 		}
 		if volume.KeySecret != "" && !validEnvironmentName(volume.KeySecret) {
 			return nil, fmt.Errorf("volumes[%d].key-secret has invalid secret name %q", index, volume.KeySecret)
