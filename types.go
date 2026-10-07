@@ -2,6 +2,8 @@ package tinfoilconfig
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -107,7 +109,7 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 type VolumeSpec struct {
 	Name      string          `yaml:"name"`
 	Exec      bool            `yaml:"exec,omitempty"`
-	Owner     int             `yaml:"owner,omitempty"`
+	Owner     string          `yaml:"owner,omitempty"`
 	KeySecret string          `yaml:"key-secret,omitempty"`
 	Overlays  []VolumeOverlay `yaml:"overlays,omitempty"`
 	// Size is the capacity of the disk backing the volume, such as "500GiB"
@@ -124,6 +126,24 @@ func (v *VolumeSpec) SizeBytes() (int64, error) {
 		return 0, nil
 	}
 	return ParseSize(v.Size)
+}
+
+// OwnerIDs returns the uid and gid declared as Owner "uid:gid" or "id" for
+// both, or root when Owner is empty.
+func (v *VolumeSpec) OwnerIDs() (uid, gid int, err error) {
+	if v.Owner == "" {
+		return 0, 0, nil
+	}
+	uidText, gidText, found := strings.Cut(v.Owner, ":")
+	if !found {
+		gidText = uidText
+	}
+	uid, uidErr := strconv.Atoi(uidText)
+	gid, gidErr := strconv.Atoi(gidText)
+	if uidErr != nil || gidErr != nil || uid < 0 || uid > maxVolumeOwner || gid < 0 || gid > maxVolumeOwner {
+		return 0, 0, fmt.Errorf("owner %q must be id or uid:gid, each between 0 and %d", v.Owner, maxVolumeOwner)
+	}
+	return uid, gid, nil
 }
 
 // VolumeOverlay stacks a model pack under a writable directory on the volume:
@@ -162,39 +182,40 @@ type AttestedKey struct {
 }
 
 type Container struct {
-	Name         string            `yaml:"name"`
-	Image        string            `yaml:"image"`
-	CVMAdmin     bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
-	SealRegister bool              `yaml:"seal_register,omitempty"`
-	Attestation  bool              `yaml:"attestation,omitempty"`
-	Command      []string          `yaml:"command,omitempty"`
-	Entrypoint   []string          `yaml:"entrypoint,omitempty"`
-	WorkingDir   string            `yaml:"working_dir,omitempty"`
-	User         string            `yaml:"user,omitempty"`
-	Env          []interface{}     `yaml:"env,omitempty"`
-	Secrets      []string          `yaml:"secrets,omitempty"`
-	Models       []string          `yaml:"models,omitempty"`
-	Keys         []string          `yaml:"keys,omitempty"`
-	Volumes      []string          `yaml:"volumes,omitempty"`
-	Devices      []string          `yaml:"devices,omitempty"`
-	CapAdd       []string          `yaml:"cap_add,omitempty"`
-	Runtime      string            `yaml:"runtime,omitempty"`
-	Networks     []string          `yaml:"networks,omitempty"`
-	Ports        []string          `yaml:"ports,omitempty"`
-	IPC          string            `yaml:"ipc,omitempty"`
-	PidMode      string            `yaml:"pid,omitempty"`
-	GPUs         interface{}       `yaml:"gpus,omitempty"`
-	ShmSize      string            `yaml:"shm_size,omitempty"`
-	Memory       string            `yaml:"memory,omitempty"`
-	CPUs         float64           `yaml:"cpus,omitempty"`
-	Tmpfs        map[string]string `yaml:"tmpfs,omitempty"`
-	ReadOnly     *bool             `yaml:"read_only,omitempty"`
-	PidsLimit    *int64            `yaml:"pids_limit,omitempty"`
-	Restart      string            `yaml:"restart,omitempty"`
-	StopSignal   string            `yaml:"stop_signal,omitempty"`
-	StopTimeout  *int              `yaml:"stop_timeout,omitempty"`
-	Healthcheck  *Healthcheck      `yaml:"healthcheck,omitempty"`
-	inputFields  containerInputFields
+	Name              string            `yaml:"name"`
+	Image             string            `yaml:"image"`
+	CVMAdmin          bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
+	SealRegister      bool              `yaml:"seal_register,omitempty"`
+	Attestation       bool              `yaml:"attestation,omitempty"`
+	Command           []string          `yaml:"command,omitempty"`
+	Entrypoint        []string          `yaml:"entrypoint,omitempty"`
+	WorkingDir        string            `yaml:"working_dir,omitempty"`
+	User              string            `yaml:"user,omitempty"`
+	Env               []interface{}     `yaml:"env,omitempty"`
+	Secrets           []string          `yaml:"secrets,omitempty"`
+	Models            []string          `yaml:"models,omitempty"`
+	Keys              []string          `yaml:"keys,omitempty"`
+	Volumes           []string          `yaml:"volumes,omitempty"`
+	PersistentVolumes []string          `yaml:"persistent_volumes,omitempty"`
+	Devices           []string          `yaml:"devices,omitempty"`
+	CapAdd            []string          `yaml:"cap_add,omitempty"`
+	Runtime           string            `yaml:"runtime,omitempty"`
+	Networks          []string          `yaml:"networks,omitempty"`
+	Ports             []string          `yaml:"ports,omitempty"`
+	IPC               string            `yaml:"ipc,omitempty"`
+	PidMode           string            `yaml:"pid,omitempty"`
+	GPUs              interface{}       `yaml:"gpus,omitempty"`
+	ShmSize           string            `yaml:"shm_size,omitempty"`
+	Memory            string            `yaml:"memory,omitempty"`
+	CPUs              float64           `yaml:"cpus,omitempty"`
+	Tmpfs             map[string]string `yaml:"tmpfs,omitempty"`
+	ReadOnly          *bool             `yaml:"read_only,omitempty"`
+	PidsLimit         *int64            `yaml:"pids_limit,omitempty"`
+	Restart           string            `yaml:"restart,omitempty"`
+	StopSignal        string            `yaml:"stop_signal,omitempty"`
+	StopTimeout       *int              `yaml:"stop_timeout,omitempty"`
+	Healthcheck       *Healthcheck      `yaml:"healthcheck,omitempty"`
+	inputFields       containerInputFields
 }
 
 type containerInputFields struct {
@@ -206,7 +227,7 @@ type containerInputFields struct {
 var containerFields = map[string]bool{
 	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
 	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
-	"volumes": true, "devices": true, "cap_add": true, "runtime": true,
+	"volumes": true, "persistent_volumes": true, "devices": true, "cap_add": true, "runtime": true,
 	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,
 	"shm_size": true, "memory": true, "cpus": true, "tmpfs": true,
 	"read_only": true, "pids_limit": true, "restart": true,

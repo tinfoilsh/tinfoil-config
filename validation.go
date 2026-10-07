@@ -49,6 +49,7 @@ var (
 	rfc1123HostnamePattern = regexp.MustCompile(`^(?i)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	modelNamePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 	volumeNamePattern      = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+	namedVolumePattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 	attestedKeyIDPattern   = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 	cvmSourceRepoPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_][A-Za-z0-9._-]*$`)
 
@@ -131,7 +132,7 @@ func ValidateAttestedKeys(config *Config) error {
 				return fmt.Errorf("container %q tmpfs %q conflicts with attested key mounts", container.Name, target)
 			}
 		}
-		for _, volume := range container.Volumes {
+		for _, volume := range slices.Concat(container.Volumes, container.PersistentVolumes) {
 			_, target, ok := strings.Cut(volume, ":")
 			if ok && overlapsKeyDir(target) {
 				return fmt.Errorf("container %q volume target %q conflicts with attested key mounts", container.Name, target)
@@ -169,8 +170,8 @@ func validateVolumes(config *Config) (map[string]bool, error) {
 		if declared[volume.Name] {
 			return nil, fmt.Errorf("volumes[%d].name %q is declared twice", index, volume.Name)
 		}
-		if volume.Owner < 0 || volume.Owner > maxVolumeOwner {
-			return nil, fmt.Errorf("volumes[%d].owner must be between 0 and %d (got %d)", index, maxVolumeOwner, volume.Owner)
+		if _, _, err := volume.OwnerIDs(); err != nil {
+			return nil, fmt.Errorf("volumes[%d].%w", index, err)
 		}
 		if volume.KeySecret != "" && !validEnvironmentName(volume.KeySecret) {
 			return nil, fmt.Errorf("volumes[%d].key-secret has invalid secret name %q", index, volume.KeySecret)
@@ -284,6 +285,7 @@ func validateContainer(index int, container *Container, availableGPUs int, volum
 	}{
 		{"command", len(container.Command)}, {"entrypoint", len(container.Entrypoint)}, {"env", len(container.Env)},
 		{"secrets", len(container.Secrets)}, {"models", len(container.Models)}, {"volumes", len(container.Volumes)}, {"devices", len(container.Devices)},
+		{"persistent_volumes", len(container.PersistentVolumes)},
 		{"keys", len(container.Keys)},
 		{"cap_add", len(container.CapAdd)}, {"networks", len(container.Networks)},
 		{"ports", len(container.Ports)},
@@ -458,12 +460,21 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 		if ReservedDebugRuntimeEnabled(container.Name, options) && (volume == debugDockerSocketBind || volume == debugManagerSocketBind) {
 			continue
 		}
+		source, _, found := strings.Cut(volume, ":")
+		if !found || !namedVolumePattern.MatchString(source) {
+			return fmt.Errorf("containers[%d].volumes[%d] must use a named volume source", index, volumeIndex)
+		}
+		if volumes[source] {
+			return fmt.Errorf("containers[%d].volumes[%d] names persistent volume %q; mount it with persistent_volumes", index, volumeIndex, source)
+		}
+	}
+	for volumeIndex, volume := range container.PersistentVolumes {
 		source, target, found := strings.Cut(volume, ":")
 		if !found || !volumes[source] {
-			return fmt.Errorf("containers[%d].volumes[%d] must name a volume declared in volumes", index, volumeIndex)
+			return fmt.Errorf("containers[%d].persistent_volumes[%d] must name a volume declared in volumes", index, volumeIndex)
 		}
 		if !path.IsAbs(target) || path.Clean(target) != target {
-			return fmt.Errorf("containers[%d].volumes[%d] must mount at a clean absolute path", index, volumeIndex)
+			return fmt.Errorf("containers[%d].persistent_volumes[%d] must mount at a clean absolute path", index, volumeIndex)
 		}
 	}
 	for capabilityIndex, capability := range container.CapAdd {
