@@ -128,17 +128,20 @@ func (v *VolumeSpec) SizeBytes() (int64, error) {
 	return ParseSize(v.Size)
 }
 
-// OwnerIDs returns the uid and gid declared as Owner "uid:gid", or root when
-// Owner is empty.
+// OwnerIDs returns the uid and gid declared as Owner "uid:gid" or "id" for
+// both, or root when Owner is empty.
 func (v *VolumeSpec) OwnerIDs() (uid, gid int, err error) {
 	if v.Owner == "" {
 		return 0, 0, nil
 	}
 	uidText, gidText, found := strings.Cut(v.Owner, ":")
+	if !found {
+		gidText = uidText
+	}
 	uid, uidErr := strconv.Atoi(uidText)
 	gid, gidErr := strconv.Atoi(gidText)
-	if !found || uidErr != nil || gidErr != nil || uid < 0 || uid > maxVolumeOwner || gid < 0 || gid > maxVolumeOwner {
-		return 0, 0, fmt.Errorf("owner %q must be uid:gid, each between 0 and %d", v.Owner, maxVolumeOwner)
+	if uidErr != nil || gidErr != nil || uid < 0 || uid > maxVolumeOwner || gid < 0 || gid > maxVolumeOwner {
+		return 0, 0, fmt.Errorf("owner %q must be id or uid:gid, each between 0 and %d", v.Owner, maxVolumeOwner)
 	}
 	return uid, gid, nil
 }
