@@ -32,6 +32,9 @@ func TestDecodeValidation(t *testing.T) {
 		want    string
 	}{
 		{name: "valid", yaml: validConfig},
+		{name: "custom runtime source", yaml: validConfig + "cvm-source: {repo: other/runtime, artifacts: https://images.example.com}\n", want: "field cvm-source not found"},
+		{name: "default runtime source", yaml: validConfig + "cvm-source: {repo: tinfoilsh/cvmimage, artifacts: https://images.tinfoil.sh/cvm}\n", want: "field cvm-source not found"},
+		{name: "null runtime source", yaml: validConfig + "cvm-source: null\n", want: "field cvm-source not found"},
 		{name: "obsolete vault URL", yaml: validConfig + "vault-url: https://keys.example.com\n", want: "field vault-url not found"},
 		{name: "unknown top-level field", yaml: validConfig + "unknown: true\n", want: "field unknown not found"},
 		{name: "unknown container field", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    typo: true", 1), want: "unknown container field"},
