@@ -34,7 +34,6 @@ type Options struct {
 
 type Config struct {
 	CVMVersion   string                  `yaml:"cvm-version"`
-	CVMSource    *CVMSource              `yaml:"cvm-source,omitempty"`
 	ShimRaw      yaml.Node               `yaml:"shim"`
 	ShimCfg      *ShimConfig             `yaml:"-"`
 	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network"`
@@ -47,20 +46,6 @@ type Config struct {
 	AttestedKeys []AttestedKey           `yaml:"attested-keys,omitempty"`
 	Containers   []Container             `yaml:"containers"`
 	KeyserverURL string                  `yaml:"keyserver-url,omitempty"`
-}
-
-type CVMSource struct {
-	Repo      string `yaml:"repo"`
-	Artifacts string `yaml:"artifacts"`
-}
-
-var DefaultCVMSource = CVMSource{Repo: "tinfoilsh/cvmimage", Artifacts: "https://images.tinfoil.sh/cvm"}
-
-func (s *CVMSource) OrDefault() CVMSource {
-	if s == nil {
-		return DefaultCVMSource
-	}
-	return *s
 }
 
 type CVMNetworkConfig struct {
