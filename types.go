@@ -162,39 +162,40 @@ type AttestedKey struct {
 }
 
 type Container struct {
-	Name         string            `yaml:"name"`
-	Image        string            `yaml:"image"`
-	CVMAdmin     bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
-	SealRegister bool              `yaml:"seal_register,omitempty"`
-	Attestation  bool              `yaml:"attestation,omitempty"`
-	Command      []string          `yaml:"command,omitempty"`
-	Entrypoint   []string          `yaml:"entrypoint,omitempty"`
-	WorkingDir   string            `yaml:"working_dir,omitempty"`
-	User         string            `yaml:"user,omitempty"`
-	Env          []interface{}     `yaml:"env,omitempty"`
-	Secrets      []string          `yaml:"secrets,omitempty"`
-	Models       []string          `yaml:"models,omitempty"`
-	Keys         []string          `yaml:"keys,omitempty"`
-	Volumes      []string          `yaml:"volumes,omitempty"`
-	Devices      []string          `yaml:"devices,omitempty"`
-	CapAdd       []string          `yaml:"cap_add,omitempty"`
-	Runtime      string            `yaml:"runtime,omitempty"`
-	Networks     []string          `yaml:"networks,omitempty"`
-	Ports        []string          `yaml:"ports,omitempty"`
-	IPC          string            `yaml:"ipc,omitempty"`
-	PidMode      string            `yaml:"pid,omitempty"`
-	GPUs         interface{}       `yaml:"gpus,omitempty"`
-	ShmSize      string            `yaml:"shm_size,omitempty"`
-	Memory       string            `yaml:"memory,omitempty"`
-	CPUs         float64           `yaml:"cpus,omitempty"`
-	Tmpfs        map[string]string `yaml:"tmpfs,omitempty"`
-	ReadOnly     *bool             `yaml:"read_only,omitempty"`
-	PidsLimit    *int64            `yaml:"pids_limit,omitempty"`
-	Restart      string            `yaml:"restart,omitempty"`
-	StopSignal   string            `yaml:"stop_signal,omitempty"`
-	StopTimeout  *int              `yaml:"stop_timeout,omitempty"`
-	Healthcheck  *Healthcheck      `yaml:"healthcheck,omitempty"`
-	inputFields  containerInputFields
+	Name              string            `yaml:"name"`
+	Image             string            `yaml:"image"`
+	CVMAdmin          bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
+	SealRegister      bool              `yaml:"seal_register,omitempty"`
+	Attestation       bool              `yaml:"attestation,omitempty"`
+	Command           []string          `yaml:"command,omitempty"`
+	Entrypoint        []string          `yaml:"entrypoint,omitempty"`
+	WorkingDir        string            `yaml:"working_dir,omitempty"`
+	User              string            `yaml:"user,omitempty"`
+	Env               []interface{}     `yaml:"env,omitempty"`
+	Secrets           []string          `yaml:"secrets,omitempty"`
+	Models            []string          `yaml:"models,omitempty"`
+	Keys              []string          `yaml:"keys,omitempty"`
+	Volumes           []string          `yaml:"volumes,omitempty"`
+	PersistentVolumes []string          `yaml:"persistent_volumes,omitempty"`
+	Devices           []string          `yaml:"devices,omitempty"`
+	CapAdd            []string          `yaml:"cap_add,omitempty"`
+	Runtime           string            `yaml:"runtime,omitempty"`
+	Networks          []string          `yaml:"networks,omitempty"`
+	Ports             []string          `yaml:"ports,omitempty"`
+	IPC               string            `yaml:"ipc,omitempty"`
+	PidMode           string            `yaml:"pid,omitempty"`
+	GPUs              interface{}       `yaml:"gpus,omitempty"`
+	ShmSize           string            `yaml:"shm_size,omitempty"`
+	Memory            string            `yaml:"memory,omitempty"`
+	CPUs              float64           `yaml:"cpus,omitempty"`
+	Tmpfs             map[string]string `yaml:"tmpfs,omitempty"`
+	ReadOnly          *bool             `yaml:"read_only,omitempty"`
+	PidsLimit         *int64            `yaml:"pids_limit,omitempty"`
+	Restart           string            `yaml:"restart,omitempty"`
+	StopSignal        string            `yaml:"stop_signal,omitempty"`
+	StopTimeout       *int              `yaml:"stop_timeout,omitempty"`
+	Healthcheck       *Healthcheck      `yaml:"healthcheck,omitempty"`
+	inputFields       containerInputFields
 }
 
 type containerInputFields struct {
@@ -206,7 +207,7 @@ type containerInputFields struct {
 var containerFields = map[string]bool{
 	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
 	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
-	"volumes": true, "devices": true, "cap_add": true, "runtime": true,
+	"volumes": true, "persistent_volumes": true, "devices": true, "cap_add": true, "runtime": true,
 	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,
 	"shm_size": true, "memory": true, "cpus": true, "tmpfs": true,
 	"read_only": true, "pids_limit": true, "restart": true,
