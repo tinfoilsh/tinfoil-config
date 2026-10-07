@@ -107,7 +107,8 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 type VolumeSpec struct {
 	Name      string          `yaml:"name"`
 	Exec      bool            `yaml:"exec,omitempty"`
-	Owner     int             `yaml:"owner,omitempty"`
+	UID       int             `yaml:"uid,omitempty"`
+	GID       int             `yaml:"gid,omitempty"`
 	KeySecret string          `yaml:"key-secret,omitempty"`
 	Overlays  []VolumeOverlay `yaml:"overlays,omitempty"`
 	// Size is the capacity of the disk backing the volume, such as "500GiB"
