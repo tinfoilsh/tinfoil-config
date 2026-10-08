@@ -2,6 +2,7 @@ package tinfoilconfig
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -32,6 +33,8 @@ func TestDecodeValidation(t *testing.T) {
 		want    string
 	}{
 		{name: "valid", yaml: validConfig},
+		{name: "empty input", want: "parsing config: EOF"},
+		{name: "empty document", yaml: "---\n", want: "upstream port is not set"},
 		{name: "custom runtime source", yaml: validConfig + "cvm-source: {repo: other/runtime, artifacts: https://images.example.com}\n", want: "field cvm-source not found"},
 		{name: "default runtime source", yaml: validConfig + "cvm-source: {repo: tinfoilsh/cvmimage, artifacts: https://images.tinfoil.sh/cvm}\n", want: "field cvm-source not found"},
 		{name: "null runtime source", yaml: validConfig + "cvm-source: null\n", want: "field cvm-source not found"},
@@ -47,6 +50,7 @@ func TestDecodeValidation(t *testing.T) {
 		{name: "declared volume as named volume", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    volumes: [state:/var/lib/app]", 1) + "volumes:\n  - name: state\n", want: "mount it with persistent_volumes"},
 		{name: "undeclared volume attached", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    persistent_volumes: [state:/var/lib/app]", 1), want: "must name a volume declared in volumes"},
 		{name: "volume mount path not absolute", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    persistent_volumes: [state:var/lib/app]", 1) + "volumes:\n  - name: state\n", want: "clean absolute path"},
+		{name: "volume mount options rejected", yaml: strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    persistent_volumes: [state:/var/lib/app:ro]", 1) + "volumes:\n  - name: state\n", want: "without colons"},
 		{name: "volume name rejected", yaml: validConfig + "volumes:\n  - name: State\n", want: "must be lowercase alphanumeric"},
 		{name: "volume owner accepted", yaml: validConfig + "volumes:\n  - name: state\n    owner: \"1000:1001\"\n"},
 		{name: "volume owner as one id accepted", yaml: validConfig + "volumes:\n  - name: state\n    owner: \"1000\"\n"},
@@ -373,6 +377,53 @@ func TestAdminSSH(t *testing.T) {
 			}
 			if mapping != nil && (mapping.Container != "app" || mapping.GuestPort != 22 || mapping.ContainerPort != 22) {
 				t.Fatalf("wrong target: %+v", mapping)
+			}
+		})
+	}
+}
+
+func TestDecodeSharedVolumeGrants(t *testing.T) {
+	input := strings.Replace(validConfig, "networks: [app]", "networks: [app]\n    persistent_volumes: [state:/data, state:/backup]", 1) + `  - name: sidecar
+    image: example.com/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    persistent_volumes: [state:/shared]
+volumes:
+  - name: state
+`
+	config, err := Decode([]byte(input), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"state:/data", "state:/backup"}, {"state:/shared"}}
+	if len(config.Containers) != len(want) {
+		t.Fatalf("containers = %d, want %d", len(config.Containers), len(want))
+	}
+	for index, mounts := range want {
+		if !slices.Equal(config.Containers[index].PersistentVolumes, mounts) {
+			t.Fatalf("containers[%d].persistent_volumes = %v, want %v", index, config.Containers[index].PersistentVolumes, mounts)
+		}
+	}
+}
+
+func TestRuntimeDigestPinStartsAtVersion015(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	for _, test := range []struct {
+		version string
+		valid   bool
+	}{
+		{"0.14.12", true}, {"v0.14.12", true}, {"0.15.0-rc1", true},
+		{"0.15.0", false}, {"v0.15.0", false}, {"0.15.1", false}, {"1.0.0", false},
+		{"0.15.0@sha256:" + digest, true},
+		{"v0.15.1@sha256:" + digest, true},
+		{"1.0.0@sha256:" + digest, true},
+		{"0.15.0@sha256:abcd", false},
+		{"0.15.0@sha256:" + strings.ToUpper(digest), false},
+		{"0.15.0+build@sha256:" + digest, false}, {"latest", false},
+	} {
+		t.Run(test.version, func(t *testing.T) {
+			data := []byte(strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+test.version, 1))
+			_, err := Decode(data, Options{})
+			if (err == nil) != test.valid {
+				t.Fatalf("Decode error = %v, want valid = %v", err, test.valid)
 			}
 		})
 	}
