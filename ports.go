@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-const maxPort = 65535
-
 type PortMapping struct {
 	Host      int
 	Container int
@@ -68,7 +66,7 @@ func AdminSSH(config *Config) (*AdminSSHMapping, error) {
 
 func parsePort(field string) int {
 	port, err := strconv.Atoi(field)
-	if err != nil || port < 1 || port > maxPort {
+	if err != nil || port < 1 || port > 65535 {
 		return 0
 	}
 	return port

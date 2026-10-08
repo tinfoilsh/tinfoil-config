@@ -493,8 +493,8 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 		if !found || !volumes[source] {
 			return fmt.Errorf("containers[%d].persistent_volumes[%d] must name a volume declared in volumes", index, volumeIndex)
 		}
-		if !path.IsAbs(target) || path.Clean(target) != target || strings.Contains(target, ":") {
-			return fmt.Errorf("containers[%d].persistent_volumes[%d] must mount at a clean absolute path without colons", index, volumeIndex)
+		if !path.IsAbs(target) || path.Clean(target) != target {
+			return fmt.Errorf("containers[%d].persistent_volumes[%d] must mount at a clean absolute path", index, volumeIndex)
 		}
 	}
 	for capabilityIndex, capability := range container.CapAdd {
