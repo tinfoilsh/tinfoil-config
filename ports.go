@@ -29,24 +29,23 @@ func ParsePorts(ports []string) ([]PortMapping, error) {
 
 const AdminSSHGuestPort = 22
 
-// AdminSSHMapping identifies the direct admin SSH mapping.
+// AdminSSHMapping identifies the direct SSH mapping. The legacy name does not
+// imply administrator privileges.
 type AdminSSHMapping struct {
 	Container     string
 	GuestPort     int
 	ContainerPort int
 }
 
-// AdminSSH resolves direct SSH from inbound port 22 and an admin container's
-// 22:22 mapping. It returns nil when no mapping is enabled. Callers must use a
-// validated config and suppress this mapping in the debug-toolbox profile.
+// AdminSSH resolves an explicitly allowed guest port 22 to its container port.
+// SSH exposure is independent of cvm_admin. Callers must use a validated config
+// and suppress this mapping in the debug-toolbox profile.
 func AdminSSH(config *Config) (*AdminSSHMapping, error) {
 	if !slices.Contains(config.CVMNetwork.InboundPorts, AdminSSHGuestPort) {
 		return nil, nil
 	}
+	var selected *AdminSSHMapping
 	for _, container := range config.Containers {
-		if !container.CVMAdmin {
-			continue
-		}
 		ports, err := ParsePorts(container.Ports)
 		if err != nil {
 			return nil, err
@@ -55,13 +54,13 @@ func AdminSSH(config *Config) (*AdminSSHMapping, error) {
 			if mapping.Host != AdminSSHGuestPort {
 				continue
 			}
-			if mapping.Container != AdminSSHGuestPort {
-				return nil, fmt.Errorf("direct admin SSH requires 22:22")
+			if selected != nil {
+				return nil, fmt.Errorf("guest port 22 is published more than once")
 			}
-			return &AdminSSHMapping{Container: container.Name, GuestPort: mapping.Host, ContainerPort: mapping.Container}, nil
+			selected = &AdminSSHMapping{Container: container.Name, GuestPort: mapping.Host, ContainerPort: mapping.Container}
 		}
 	}
-	return nil, nil
+	return selected, nil
 }
 
 func parsePort(field string) int {

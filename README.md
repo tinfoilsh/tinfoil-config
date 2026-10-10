@@ -37,12 +37,19 @@ other workloads and their secrets. The profile uses UID/GID 0, privileged
 execution, and no-new-privileges disabled. The rootfs is writable unless
 `read_only: true` is set. Admin access does not enable debug mode.
 
-Admin containers use declared bridge `networks` and `ports`. Direct SSH requires
-`cvm-network.inbound-ports` to include 22 and an admin container publishing
-`22:22` on an attached network. `AdminSSH(cfg)` returns that mapping, or nil when
-none is enabled. Other published ports remain private. Writable layers and
-Docker state are ephemeral across CVM reboot; declared volumes provide
-persistent storage.
+Admin containers use declared bridge `networks` and `ports`. Writable layers and
+Docker state are ephemeral across CVM reboot; declared volumes provide persistent
+storage.
+
+## Direct SSH
+
+Direct SSH requires `cvm-network.inbound-ports` to include 22 and one container
+publishing guest port 22 on an attached network. For example, `ports: ["22:2223"]`
+exposes a non-root SSH server listening on container port 2223. It does not grant
+`cvm_admin` or change the container's user or privileges. The existing
+`AdminSSH(cfg)` helper returns that mapping, or nil when none is enabled; its
+name is retained for compatibility. Other published ports remain private, and
+the debug toolbox suppresses the production SSH mapping.
 
 ## Attested boot keys
 
