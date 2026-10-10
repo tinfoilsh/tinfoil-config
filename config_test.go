@@ -348,9 +348,9 @@ func TestAdminSSH(t *testing.T) {
 	}{
 		{"enabled", base, true, ""},
 		{"no inbound opt-in", strings.Replace(base, "inbound-ports: [22]", "inbound-ports: []", 1), false, ""},
-		{"ordinary container", strings.Replace(base, "cvm_admin: true", "cvm_admin: false", 1), false, ""},
+		{"ordinary container", strings.Replace(base, "cvm_admin: true", "cvm_admin: false", 1), true, ""},
 		{"different published port", strings.Replace(base, "'22:22'", "'2022:22'", 1), false, ""},
-		{"wrong target", strings.Replace(base, "'22:22'", "'22:2222'", 1), false, "requires 22:22"},
+		{"unprivileged target", strings.Replace(strings.Replace(base, "'22:22'", "'22:2222'", 1), "cvm_admin: true", "cvm_admin: false", 1), true, ""},
 		{"duplicate mapping", strings.Replace(base, "'3000:3000'", "'22:22'", 1), false, "already published"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -371,7 +371,11 @@ func TestAdminSSH(t *testing.T) {
 			if (mapping != nil) != tc.enabled {
 				t.Fatalf("mapping = %+v", mapping)
 			}
-			if mapping != nil && (mapping.Container != "app" || mapping.GuestPort != 22 || mapping.ContainerPort != 22) {
+			target := 22
+			if tc.name == "unprivileged target" {
+				target = 2222
+			}
+			if mapping != nil && (mapping.Container != "app" || mapping.GuestPort != 22 || mapping.ContainerPort != target) {
 				t.Fatalf("wrong target: %+v", mapping)
 			}
 		})
