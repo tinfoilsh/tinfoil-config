@@ -41,11 +41,16 @@ type Config struct {
 	CPUs         int                     `yaml:"cpus"`
 	Memory       int                     `yaml:"memory"`
 	GPUs         int                     `yaml:"gpus"`
+	Security     SecurityConfig          `yaml:"security,omitempty"`
 	Models       []ModelSpec             `yaml:"models"`
 	Volumes      []VolumeSpec            `yaml:"volumes"`
 	AttestedKeys []AttestedKey           `yaml:"attested-keys,omitempty"`
 	Containers   []Container             `yaml:"containers"`
 	KeyserverURL string                  `yaml:"keyserver-url,omitempty"`
+}
+
+type SecurityConfig struct {
+	AllowUnencryptedNVLink bool `yaml:"allow-unencrypted-nvlink,omitempty"`
 }
 
 type CVMNetworkConfig struct {

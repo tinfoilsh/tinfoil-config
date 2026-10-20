@@ -30,6 +30,19 @@ require an explicit grant; plaintext models without grants use shared mounts.
 `containers[].attestation: true` grants access to the local attestation socket.
 Access defaults to false.
 
+## GPU security
+
+`security.allow-unencrypted-nvlink` permits multi-GPU Hopper workloads (H100 and
+H200), whose NVLink traffic is unencrypted. It defaults to false. The CVM enforces
+this measured policy before enabling GPUs and starting workloads; opting in keeps
+GPU, NVSwitch, and topology attestation checks enabled.
+
+```yaml
+gpus: 8
+security:
+  allow-unencrypted-nvlink: true
+```
+
 ## CVM administration
 
 `containers[].cvm_admin: true` grants administration of the entire CVM, including
