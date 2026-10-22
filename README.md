@@ -32,10 +32,11 @@ Access defaults to false.
 
 ## GPU security
 
-IGVM variant releases share one manifest pin. `cvm-version: "0.15.0@sha256:<digest>"`
-selects the CPU image; `"0.15.0+gpu@sha256:<digest>"` selects the GPU image from the
-same manifest. The suffix selects image contents independently of `gpus`, which
-declares the hardware count. Unknown variants are rejected.
+IGVM releases publish separate CPU and GPU manifests. Pin the CPU image with
+`cvm-version: "0.15.0@sha256:<cpu-manifest-digest>"` or the GPU image with
+`"0.15.0+gpu@sha256:<gpu-manifest-digest>"`. Each manifest has its own digest.
+The suffix selects image contents independently of `gpus`, which declares the
+hardware count. Unknown suffixes are rejected.
 
 `security.allow-unencrypted-nvlink` permits multi-GPU Hopper workloads (H100 and
 H200), whose NVLink traffic is unencrypted. It defaults to false. The CVM enforces

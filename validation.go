@@ -1,6 +1,8 @@
 package tinfoilconfig
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"path"
@@ -10,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/distribution/reference"
-	cvmruntime "github.com/tinfoilsh/tinfoil-config/runtime"
 	"golang.org/x/mod/semver"
 )
 
@@ -86,11 +87,13 @@ func Validate(config *Config, options Options) error {
 	return err
 }
 
+const gpuVersionSuffix = "+gpu"
+
 func validateCVMVersion(value string) error {
 	if value == "" {
 		return nil
 	}
-	version, _, _ := strings.Cut(value, "@sha256:")
+	version, digest, pinned := strings.Cut(value, "@sha256:")
 	tag := "v" + strings.TrimPrefix(version, "v")
 	if !semver.IsValid(tag) {
 		return fmt.Errorf("cvm-version must contain a semantic version")
@@ -98,7 +101,8 @@ func validateCVMVersion(value string) error {
 	if semver.Compare(tag, minimumPinnedCVMVersion) < 0 && semver.Build(tag) == "" {
 		return nil
 	}
-	if _, err := cvmruntime.ParseReference(value); err != nil {
+	decoded, err := hex.DecodeString(digest)
+	if !pinned || semver.Canonical(tag) != strings.TrimSuffix(tag, gpuVersionSuffix) || err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
 		return fmt.Errorf("cvm-version %s and above requires <version>@sha256:<lowercase manifest digest>", minimumPinnedCVMVersion)
 	}
 	return nil
