@@ -87,8 +87,6 @@ func Validate(config *Config, options Options) error {
 	return err
 }
 
-const gpuVersionSuffix = "+gpu"
-
 func validateCVMVersion(value string) error {
 	if value == "" {
 		return nil
@@ -102,7 +100,7 @@ func validateCVMVersion(value string) error {
 		return nil
 	}
 	decoded, err := hex.DecodeString(digest)
-	if !pinned || semver.Canonical(tag) != strings.TrimSuffix(tag, gpuVersionSuffix) || err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
+	if !pinned || semver.Canonical(tag)+semver.Build(tag) != tag || err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
 		return fmt.Errorf("cvm-version %s and above requires <version>@sha256:<lowercase manifest digest>", minimumPinnedCVMVersion)
 	}
 	return nil
