@@ -96,11 +96,11 @@ func validateCVMVersion(value string) error {
 	if !semver.IsValid(tag) {
 		return fmt.Errorf("cvm-version must contain a semantic version")
 	}
-	if semver.Compare(tag, minimumPinnedCVMVersion) < 0 {
+	if semver.Compare(tag, minimumPinnedCVMVersion) < 0 && semver.Build(tag) == "" {
 		return nil
 	}
 	decoded, err := hex.DecodeString(digest)
-	if !pinned || semver.Canonical(tag) != tag || err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
+	if !pinned || semver.Canonical(tag)+semver.Build(tag) != tag || err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
 		return fmt.Errorf("cvm-version %s and above requires <version>@sha256:<lowercase manifest digest>", minimumPinnedCVMVersion)
 	}
 	return nil

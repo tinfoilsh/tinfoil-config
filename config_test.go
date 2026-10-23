@@ -391,17 +391,29 @@ func TestRuntimeDigestPinStartsAtVersion015(t *testing.T) {
 		{"0.14.12", true}, {"v0.14.12", true}, {"0.15.0-rc1", true},
 		{"0.15.0", false}, {"v0.15.0", false}, {"0.15.1", false}, {"1.0.0", false},
 		{"0.15.0@sha256:" + digest, true},
+		{"0.15.0+gpu@sha256:" + digest, true},
+		{"0.15.1-rc.1+gpu@sha256:" + digest, true},
+		{"0.15.0+mini@sha256:" + digest, true},
+		{"0.15.0+containers.initrd-1@sha256:" + digest, true},
+		{"0.15.0+GPU@sha256:" + digest, true},
+		{"0.15.0+gpu", false},
+		{"0.14.12+mini", false},
+		{"0.15+mini@sha256:" + digest, false},
+		{"0.15.0+mini/other@sha256:" + digest, false},
 		{"v0.15.1@sha256:" + digest, true},
 		{"1.0.0@sha256:" + digest, true},
 		{"0.15.0@sha256:abcd", false},
 		{"0.15.0@sha256:" + strings.ToUpper(digest), false},
-		{"0.15.0+build@sha256:" + digest, false}, {"latest", false},
+		{"0.15.0+build@sha256:" + digest, true}, {"latest", false},
 	} {
 		t.Run(test.version, func(t *testing.T) {
 			data := []byte(strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+test.version, 1))
-			_, err := Decode(data, Options{})
+			config, err := Decode(data, Options{})
 			if (err == nil) != test.valid {
 				t.Fatalf("Decode error = %v, want valid = %v", err, test.valid)
+			}
+			if err == nil && config.CVMVersion != test.version {
+				t.Fatalf("runtime pin changed to %q", config.CVMVersion)
 			}
 		})
 	}
