@@ -61,6 +61,14 @@ var (
 )
 
 func Validate(config *Config, options Options) error {
+	if options.WorkloadPolicy || (config.ShimCfg != nil && config.ShimCfg.ApplicationPolicy == "workload") {
+		if err := ValidateWorkloadShim(&config.ShimRaw); err != nil {
+			return err
+		}
+		if err := validateWorkloadPolicy(config); err != nil {
+			return err
+		}
+	}
 	if err := validateCVMVersion(config.CVMVersion); err != nil {
 		return err
 	}
@@ -308,7 +316,7 @@ func validateContainer(index int, container *Container, availableGPUs int, volum
 		{"persistent_volumes", len(container.PersistentVolumes)},
 		{"keys", len(container.Keys)},
 		{"cap_add", len(container.CapAdd)}, {"networks", len(container.Networks)},
-		{"ports", len(container.Ports)},
+		{"ports", len(container.Ports)}, {"tunnel-ports", len(container.TunnelPorts)},
 	}
 	for _, list := range lists {
 		if list.count > maxContainerListEntries {
@@ -606,6 +614,9 @@ func validateContainerPorts(index int, container *Container, publishedBy map[int
 		return fmt.Errorf("containers[%d] %q: %v", index, container.Name, err)
 	}
 	if len(mappings) == 0 {
+		if len(container.TunnelPorts) != 0 {
+			return fmt.Errorf("containers[%d].tunnel-ports requires published ports", index)
+		}
 		return nil
 	}
 	if len(container.Networks) == 0 {
@@ -619,6 +630,13 @@ func validateContainerPorts(index int, container *Container, publishedBy map[int
 			return fmt.Errorf("containers[%d] %q: host port %d is already published by %q", index, container.Name, mapping.Host, prior)
 		}
 		publishedBy[mapping.Host] = container.Name
+	}
+	seenTunnel := make(map[int]bool)
+	for _, port := range container.TunnelPorts {
+		if seenTunnel[port] || !slices.ContainsFunc(mappings, func(mapping PortMapping) bool { return mapping.Host == port }) {
+			return fmt.Errorf("containers[%d].tunnel-ports must be unique published host ports", index)
+		}
+		seenTunnel[port] = true
 	}
 	return nil
 }
