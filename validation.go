@@ -67,8 +67,8 @@ func Validate(config *Config, options Options) error {
 	if config.Visibility != "" && config.Visibility != VisibilityPublic && config.Visibility != VisibilityPrivate {
 		return fmt.Errorf("visibility must be public or private")
 	}
-	if config.Visibility == VisibilityPrivate && !config.DigestOnlyAttestation() {
-		return fmt.Errorf("private configs require cvm-version %s or later", PrivateConfigMinVersion)
+	if config.Visibility != "" && !config.DigestOnlyAttestation() {
+		return fmt.Errorf("visibility requires cvm-version %s or later; earlier configs are public", PrivateConfigMinVersion)
 	}
 	if config.GPUs < 0 || config.GPUs > 8 {
 		return fmt.Errorf("gpus must be between 0 and 8 (got %d)", config.GPUs)

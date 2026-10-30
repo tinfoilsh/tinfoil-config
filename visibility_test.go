@@ -16,7 +16,7 @@ func TestConfigVisibility(t *testing.T) {
 					data += "\nvisibility: " + visibility + "\n"
 				}
 				config, err := Decode([]byte(data), Options{})
-				invalid := visibility == "true" || visibility == "invalid" || (visibility == VisibilityPrivate && !modern)
+				invalid := visibility == "true" || visibility == "invalid" || (visibility != "" && !modern)
 				if invalid {
 					if err == nil {
 						t.Fatal("unsupported visibility accepted")
