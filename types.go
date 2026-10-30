@@ -34,6 +34,7 @@ type Options struct {
 
 type Config struct {
 	CVMVersion   string                  `yaml:"cvm-version"`
+	Visibility   string                  `yaml:"visibility,omitempty"`
 	ShimRaw      yaml.Node               `yaml:"shim"`
 	ShimCfg      *ShimConfig             `yaml:"-"`
 	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network"`
