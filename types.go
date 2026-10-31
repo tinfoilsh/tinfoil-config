@@ -34,7 +34,6 @@ type Options struct {
 
 type Config struct {
 	CVMVersion   string                  `yaml:"cvm-version"`
-	Visibility   string                  `yaml:"visibility,omitempty"`
 	ShimRaw      yaml.Node               `yaml:"shim"`
 	ShimCfg      *ShimConfig             `yaml:"-"`
 	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network"`
@@ -51,7 +50,8 @@ type Config struct {
 }
 
 type SecurityConfig struct {
-	AllowUnencryptedNVLink bool `yaml:"allow-unencrypted-nvlink,omitempty"`
+	AllowUnencryptedNVLink bool   `yaml:"allow-unencrypted-nvlink,omitempty"`
+	ConfigVisibility       string `yaml:"config-visibility,omitempty"`
 }
 
 type CVMNetworkConfig struct {

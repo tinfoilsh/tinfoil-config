@@ -13,7 +13,7 @@ func TestConfigVisibility(t *testing.T) {
 				pin := version + "@sha256:" + strings.Repeat("a", 64)
 				data := strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+pin, 1)
 				if visibility != "" {
-					data += "\nvisibility: " + visibility + "\n"
+					data += "\nsecurity:\n  config-visibility: " + visibility + "\n"
 				}
 				config, err := Decode([]byte(data), Options{})
 				invalid := visibility == "true" || visibility == "invalid" || (visibility != "" && !modern)
@@ -32,5 +32,12 @@ func TestConfigVisibility(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestConfigVisibilityRejectsTopLevelField(t *testing.T) {
+	config := strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+PrivateConfigMinVersion+"@sha256:"+strings.Repeat("a", 64), 1)
+	if _, err := Decode([]byte(config+"\nvisibility: public\n"), Options{}); err == nil {
+		t.Fatal("top-level visibility field accepted")
 	}
 }

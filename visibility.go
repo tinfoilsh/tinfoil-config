@@ -18,5 +18,5 @@ func (c *Config) DigestOnlyAttestation() bool {
 }
 
 func (c *Config) IsPublic() bool {
-	return c.Visibility == VisibilityPublic || (c.Visibility == "" && !c.DigestOnlyAttestation())
+	return c.Security.ConfigVisibility == VisibilityPublic || (c.Security.ConfigVisibility == "" && !c.DigestOnlyAttestation())
 }
