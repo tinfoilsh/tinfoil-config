@@ -17,6 +17,9 @@ import (
 
 const (
 	minimumPinnedCVMVersion   = "v0.15.0"
+	PrivateConfigMinVersion   = "v0.15.3-rc.1"
+	VisibilityPublic          = "public"
+	VisibilityPrivate         = "private"
 	MaxModelDisks             = 24
 	MaxAttestedKeys           = 32
 	reservedShimNetworkName   = "shim-net"
@@ -111,6 +114,15 @@ func validateCVMVersion(value string) error {
 		return fmt.Errorf("cvm-version %s and above requires <version>@sha256:<lowercase manifest digest>", minimumPinnedCVMVersion)
 	}
 	return nil
+}
+
+func (c *Config) DigestOnlyAttestation() bool {
+	version, _, _ := strings.Cut(c.CVMVersion, "@sha256:")
+	return semver.Compare("v"+strings.TrimPrefix(version, "v"), PrivateConfigMinVersion) >= 0
+}
+
+func (c *Config) IsPublic() bool {
+	return c.Security.ConfigVisibility == VisibilityPublic || (c.Security.ConfigVisibility == "" && !c.DigestOnlyAttestation())
 }
 
 // ValidateAttestedKeys checks declarations, exclusive grants, ownership and
