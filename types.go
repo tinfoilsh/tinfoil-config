@@ -50,7 +50,8 @@ type Config struct {
 }
 
 type SecurityConfig struct {
-	AllowUnencryptedNVLink bool `yaml:"allow-unencrypted-nvlink,omitempty"`
+	AllowUnencryptedNVLink bool   `yaml:"allow-unencrypted-nvlink,omitempty"`
+	ConfigVisibility       string `yaml:"config-visibility,omitempty"`
 }
 
 type CVMNetworkConfig struct {
