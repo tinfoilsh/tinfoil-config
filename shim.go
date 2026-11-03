@@ -26,6 +26,7 @@ type ShimConfig struct {
 	AuthenticatedEndpoints *[]string `yaml:"authenticated-endpoints"`
 	RateLimit              float64   `yaml:"rate-limit"`
 	RateBurst              int       `yaml:"rate-burst"`
+	DrainConnections       bool      `yaml:"drain_connections" default:"false"`
 	Email                  string    `yaml:"email" default:"tls@tinfoil.sh"`
 	PublishAttestation     bool      `yaml:"publish-attestation" default:"true"`
 	DummyAttestation       bool      `yaml:"dummy-attestation" default:"false"`
