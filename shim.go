@@ -9,10 +9,11 @@ import (
 )
 
 type ShimConfig struct {
+	ApplicationPolicy string   `yaml:"application-policy,omitempty"`
 	UpstreamPort      int      `yaml:"upstream-port"`
 	UpstreamContainer string   `yaml:"upstream-container,omitempty"`
-	Paths             []string `yaml:"paths"`
-	OriginDomains     []string `yaml:"origins"`
+	Paths             []string `yaml:"paths,omitempty"`
+	OriginDomains     []string `yaml:"origins,omitempty"`
 
 	TLSMode          string `yaml:"tls-mode" default:"cert-proxy"`
 	TLSEnv           string `yaml:"tls-env" default:"production"`
@@ -22,10 +23,10 @@ type ShimConfig struct {
 
 	ControlPlane           string    `yaml:"control-plane" default:"https://api.tinfoil.sh"`
 	ATC                    string    `yaml:"atc" default:"https://atc.tinfoil.sh"`
-	Authenticated          bool      `yaml:"authenticated" default:"false"`
-	AuthenticatedEndpoints *[]string `yaml:"authenticated-endpoints"`
-	RateLimit              float64   `yaml:"rate-limit"`
-	RateBurst              int       `yaml:"rate-burst"`
+	Authenticated          bool      `yaml:"authenticated,omitempty" default:"false"`
+	AuthenticatedEndpoints *[]string `yaml:"authenticated-endpoints,omitempty"`
+	RateLimit              float64   `yaml:"rate-limit,omitempty"`
+	RateBurst              int       `yaml:"rate-burst,omitempty"`
 	Email                  string    `yaml:"email" default:"tls@tinfoil.sh"`
 	PublishAttestation     bool      `yaml:"publish-attestation" default:"true"`
 	DummyAttestation       bool      `yaml:"dummy-attestation" default:"false"`
@@ -50,6 +51,9 @@ func DecodeShim(node *yaml.Node) (*ShimConfig, error) {
 }
 
 func (c *ShimConfig) Validate() error {
+	if c.ApplicationPolicy != "" && c.ApplicationPolicy != "workload" {
+		return fmt.Errorf("application-policy must be workload when set")
+	}
 	if c.UpstreamPort == 0 {
 		return fmt.Errorf("upstream port is not set")
 	}
@@ -104,6 +108,28 @@ func validateYAMLTree(root *yaml.Node) error {
 		for index := len(pending.node.Content) - 1; index >= 0; index-- {
 			stack = append(stack, pendingNode{node: pending.node.Content[index], depth: pending.depth + 1})
 		}
+	}
+	return nil
+}
+
+// ValidateWorkloadShim rejects even zero-valued legacy settings, so an image
+// switch cannot silently discard application authentication or path policy.
+func ValidateWorkloadShim(node *yaml.Node) error {
+	if node == nil || node.Kind != yaml.MappingNode || len(node.Content)%2 != 0 {
+		return fmt.Errorf("workload policy requires a shim mapping")
+	}
+	owner := ""
+	for i := 0; i < len(node.Content); i += 2 {
+		field := node.Content[i].Value
+		switch field {
+		case "authenticated", "authenticated-endpoints", "paths", "origins", "rate-limit", "rate-burst":
+			return fmt.Errorf("shim.%s is unsupported by workload-policy images; move it into the workload", field)
+		case "application-policy":
+			owner = node.Content[i+1].Value
+		}
+	}
+	if owner != "workload" {
+		return fmt.Errorf("this image requires shim.application-policy: workload")
 	}
 	return nil
 }

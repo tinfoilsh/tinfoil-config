@@ -30,6 +30,8 @@ const (
 
 type Options struct {
 	Mode ValidationMode
+	// WorkloadPolicy selects an image whose shim owns only transport policy.
+	WorkloadPolicy bool
 }
 
 type Config struct {
@@ -173,6 +175,9 @@ type AttestedKey struct {
 }
 
 type Container struct {
+	// TunnelPorts explicitly opts published host ports into CONNECT. Their
+	// workload endpoint must authenticate clients itself, for example sshd.
+	TunnelPorts       []int             `yaml:"tunnel-ports,omitempty"`
 	Name              string            `yaml:"name"`
 	Image             string            `yaml:"image"`
 	CVMAdmin          bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
@@ -216,7 +221,8 @@ type containerInputFields struct {
 }
 
 var containerFields = map[string]bool{
-	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
+	"tunnel-ports": true,
+	"name":         true, "image": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
 	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
 	"volumes": true, "persistent_volumes": true, "devices": true, "cap_add": true, "runtime": true,
 	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,

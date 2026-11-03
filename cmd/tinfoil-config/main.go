@@ -9,9 +9,10 @@ import (
 )
 
 func main() {
+	workloadPolicy := flag.Bool("workload-policy", false, "require an image/config pairing with workload-owned application policy")
 	hostDebug := flag.Bool("host-debug", false, "validate YAML after trusted tinfoild debug injection")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [--host-debug] CONFIG.yml\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [--host-debug] [--workload-policy] CONFIG.yml\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -24,7 +25,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "read config: %v\n", err)
 		os.Exit(1)
 	}
-	options := tinfoilconfig.Options{}
+	options := tinfoilconfig.Options{WorkloadPolicy: *workloadPolicy}
 	if *hostDebug {
 		options.Mode = tinfoilconfig.HostDebugMode
 	}
