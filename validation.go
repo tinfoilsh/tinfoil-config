@@ -18,8 +18,6 @@ import (
 const (
 	minimumPinnedCVMVersion   = "v0.15.0"
 	PrivateConfigMinVersion   = "v0.15.3-rc.1"
-	VisibilityPublic          = "public"
-	VisibilityPrivate         = "private"
 	MaxModelDisks             = 24
 	MaxAttestedKeys           = 32
 	reservedShimNetworkName   = "shim-net"
@@ -67,13 +65,6 @@ func Validate(config *Config, options Options) error {
 	if err := validateCVMVersion(config.CVMVersion); err != nil {
 		return err
 	}
-	visibility := config.Security.ConfigVisibility
-	if visibility != "" && visibility != VisibilityPublic && visibility != VisibilityPrivate {
-		return fmt.Errorf("security.config-visibility must be public or private")
-	}
-	if visibility != "" && !config.DigestOnlyAttestation() {
-		return fmt.Errorf("security.config-visibility requires cvm-version %s or later; earlier configs are public", PrivateConfigMinVersion)
-	}
 	if config.GPUs < 0 || config.GPUs > 8 {
 		return fmt.Errorf("gpus must be between 0 and 8 (got %d)", config.GPUs)
 	}
@@ -119,10 +110,6 @@ func validateCVMVersion(value string) error {
 func (c *Config) DigestOnlyAttestation() bool {
 	version, _, _ := strings.Cut(c.CVMVersion, "@sha256:")
 	return semver.Compare("v"+strings.TrimPrefix(version, "v"), PrivateConfigMinVersion) >= 0
-}
-
-func (c *Config) IsPublic() bool {
-	return c.Security.ConfigVisibility == VisibilityPublic || (c.Security.ConfigVisibility == "" && !c.DigestOnlyAttestation())
 }
 
 // ValidateAttestedKeys checks declarations, exclusive grants, ownership and
