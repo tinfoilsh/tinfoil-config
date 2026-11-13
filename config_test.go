@@ -4,9 +4,42 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+func TestConnectionDrainSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields string
+		enabled      bool
+		timeout      time.Duration
+	}{
+		{"default", "", false, 5 * time.Minute},
+		{"enabled", "\n  drain_connections: true", true, 5 * time.Minute},
+		{"custom", "\n  drain_connections: true\n  drain_timeout: 90s", true, 90 * time.Second},
+		{"disabled", "\n  drain_connections: false\n  drain_timeout: 20s", false, 20 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := strings.Replace(validConfig, "upstream-port: 8080", "upstream-port: 8080"+tc.fields, 1)
+			cfg, err := Decode([]byte(data), Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.ShimCfg.DrainConnections != tc.enabled || cfg.ShimCfg.DrainTimeout != tc.timeout {
+				t.Fatalf("drain = %t/%s, want %t/%s", cfg.ShimCfg.DrainConnections, cfg.ShimCfg.DrainTimeout, tc.enabled, tc.timeout)
+			}
+		})
+	}
+	for _, value := range []string{"0s", "-1s", "forever", "10"} {
+		t.Run(value, func(t *testing.T) {
+			data := strings.Replace(validConfig, "upstream-port: 8080", "upstream-port: 8080\n  drain_connections: true\n  drain_timeout: "+value, 1)
+			if _, err := Decode([]byte(data), Options{}); err == nil {
+				t.Fatalf("accepted invalid drain_timeout %q", value)
+			}
+		})
+	}
+}
 
 const validConfig = `
 cvm-version: 0.11.0
