@@ -3,10 +3,13 @@ package tinfoilconfig
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v3"
 )
+
+const DefaultDrainTimeout = 5 * time.Minute
 
 type ShimConfig struct {
 	UpstreamPort      int      `yaml:"upstream-port"`
@@ -20,17 +23,24 @@ type ShimConfig struct {
 	TLSWildcard      bool   `yaml:"tls-wildcard" default:"false"`
 	TLSOwnSANDomain  bool   `yaml:"tls-own-san-domain" default:"false"`
 
-	ControlPlane           string    `yaml:"control-plane" default:"https://api.tinfoil.sh"`
-	ATC                    string    `yaml:"atc" default:"https://atc.tinfoil.sh"`
-	Authenticated          bool      `yaml:"authenticated" default:"false"`
-	AuthenticatedEndpoints *[]string `yaml:"authenticated-endpoints"`
-	RateLimit              float64   `yaml:"rate-limit"`
-	RateBurst              int       `yaml:"rate-burst"`
-	DrainConnections       bool      `yaml:"drain_connections" default:"false"`
-	Email                  string    `yaml:"email" default:"tls@tinfoil.sh"`
-	PublishAttestation     bool      `yaml:"publish-attestation" default:"true"`
-	DummyAttestation       bool      `yaml:"dummy-attestation" default:"false"`
-	ExpectedGPUs           int       `yaml:"expected-gpus" default:"0"`
+	ControlPlane           string        `yaml:"control-plane" default:"https://api.tinfoil.sh"`
+	ATC                    string        `yaml:"atc" default:"https://atc.tinfoil.sh"`
+	Authenticated          bool          `yaml:"authenticated" default:"false"`
+	AuthenticatedEndpoints *[]string     `yaml:"authenticated-endpoints"`
+	RateLimit              float64       `yaml:"rate-limit"`
+	RateBurst              int           `yaml:"rate-burst"`
+	DrainConnections       bool          `yaml:"drain_connections" default:"false"`
+	DrainTimeout           time.Duration `yaml:"drain_timeout"`
+	Email                  string        `yaml:"email" default:"tls@tinfoil.sh"`
+	PublishAttestation     bool          `yaml:"publish-attestation" default:"true"`
+	DummyAttestation       bool          `yaml:"dummy-attestation" default:"false"`
+	ExpectedGPUs           int           `yaml:"expected-gpus" default:"0"`
+}
+
+func (c *ShimConfig) SetDefaults() {
+	if c.DrainTimeout == 0 {
+		c.DrainTimeout = DefaultDrainTimeout
+	}
 }
 
 func DecodeShim(node *yaml.Node) (*ShimConfig, error) {
@@ -51,6 +61,9 @@ func DecodeShim(node *yaml.Node) (*ShimConfig, error) {
 }
 
 func (c *ShimConfig) Validate() error {
+	if c.DrainTimeout < 0 || c.DrainConnections && c.DrainTimeout == 0 {
+		return fmt.Errorf("drain_timeout must be positive")
+	}
 	if c.UpstreamPort == 0 {
 		return fmt.Errorf("upstream port is not set")
 	}
