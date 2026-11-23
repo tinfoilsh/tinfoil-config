@@ -415,6 +415,61 @@ func TestAdminSSH(t *testing.T) {
 	}
 }
 
+func TestContainerProvenance(t *testing.T) {
+	const disclosure = "security:\n  include-config-in-attestation: true\n"
+	provenance := func(github string) string {
+		return "    provenance:\n      github:\n" + github
+	}
+	const repository = "        repository: tinfoilsh/inference\n"
+	const repositoryID = "        repository_id: 902195777\n"
+	const workflow = "        workflow: containers.yml\n"
+	const ref = "        ref: refs/tags/vllm-v*\n"
+	for _, test := range []struct {
+		name    string
+		fields  string
+		trailer string
+		wantErr string
+	}{
+		{name: "absent"},
+		{name: "declared", fields: provenance(repository + repositoryID + workflow + ref), trailer: disclosure},
+		{name: "branch ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/heads/main\n"), trailer: disclosure},
+		{name: "config not disclosed", fields: provenance(repository + repositoryID + workflow + ref), wantErr: "requires security.include-config-in-attestation"},
+		{name: "no source", fields: "    provenance: {}\n", trailer: disclosure, wantErr: "provenance.github is required"},
+		{name: "unknown source", fields: "    provenance:\n      gitlab: {}\n", trailer: disclosure, wantErr: `unknown provenance field "gitlab"`},
+		{name: "unknown key", fields: provenance(repository + repositoryID + workflow + ref + "        commit: abc\n"), trailer: disclosure, wantErr: `unknown provenance.github field "commit"`},
+		{name: "duplicate key", fields: provenance(repository + repository + repositoryID + workflow + ref), trailer: disclosure, wantErr: `duplicate provenance.github field "repository"`},
+		{name: "not a mapping", fields: "    provenance: tinfoilsh/inference\n", trailer: disclosure, wantErr: "provenance must be a mapping"},
+		{name: "repository without owner", fields: provenance("        repository: inference\n" + repositoryID + workflow + ref), trailer: disclosure, wantErr: "must be owner/name"},
+		{name: "missing repository ID", fields: provenance(repository + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "workflow path", fields: provenance(repository + repositoryID + "        workflow: .github/workflows/containers.yml\n" + ref), trailer: disclosure, wantErr: "must be a workflow file name"},
+		{name: "pull request ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/pull/*/merge\n"), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
+		{name: "missing ref", fields: provenance(repository + repositoryID + workflow), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := Decode([]byte(validConfig+test.fields+test.trailer), Options{})
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want substring %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := cfg.Containers[0].Provenance
+			if test.fields == "" {
+				if got != nil {
+					t.Fatalf("provenance = %+v, want none", got)
+				}
+				return
+			}
+			if got == nil || got.GitHub == nil || got.GitHub.Repository != "tinfoilsh/inference" || got.GitHub.RepositoryID != 902195777 || got.GitHub.Workflow != "containers.yml" {
+				t.Fatalf("provenance = %+v", got)
+			}
+		})
+	}
+}
+
 func TestConfigAttestationDisclosure(t *testing.T) {
 	for _, include := range []bool{false, true} {
 		data := strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+PrivateConfigMinVersion+"@sha256:"+strings.Repeat("a", 64), 1)
