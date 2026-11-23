@@ -67,6 +67,14 @@ var (
 	githubRefPattern        = regexp.MustCompile(`^refs/(tags|heads)/[A-Za-z0-9_.*-]+(/[A-Za-z0-9_.*-]+)*$`)
 )
 
+// Verifiers build a regular expression from a provenance requirement, so its
+// length bounds the size of that expression.
+const (
+	maxGitHubRepositoryLength = 140
+	maxGitHubWorkflowLength   = 255
+	maxGitHubRefLength        = 255
+)
+
 func Validate(config *Config, options Options) error {
 	if err := validateCVMVersion(config.CVMVersion); err != nil {
 		return err
@@ -478,16 +486,16 @@ func validateContainerProvenance(index int, provenance *Provenance) error {
 	if github == nil {
 		return fmt.Errorf("containers[%d].provenance.github is required", index)
 	}
-	if !githubRepositoryPattern.MatchString(github.Repository) {
+	if len(github.Repository) > maxGitHubRepositoryLength || !githubRepositoryPattern.MatchString(github.Repository) {
 		return fmt.Errorf("containers[%d].provenance.github.repository %q must be owner/name", index, github.Repository)
 	}
 	if github.RepositoryID <= 0 {
 		return fmt.Errorf("containers[%d].provenance.github.repository_id must be the repository's numeric ID", index)
 	}
-	if !githubWorkflowPattern.MatchString(github.Workflow) {
+	if len(github.Workflow) > maxGitHubWorkflowLength || !githubWorkflowPattern.MatchString(github.Workflow) {
 		return fmt.Errorf("containers[%d].provenance.github.workflow %q must be a workflow file name", index, github.Workflow)
 	}
-	if !githubRefPattern.MatchString(github.Ref) {
+	if len(github.Ref) > maxGitHubRefLength || !githubRefPattern.MatchString(github.Ref) {
 		return fmt.Errorf("containers[%d].provenance.github.ref %q must be a tag or branch ref pattern", index, github.Ref)
 	}
 	return nil

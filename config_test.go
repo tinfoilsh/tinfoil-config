@@ -444,6 +444,9 @@ func TestContainerProvenance(t *testing.T) {
 		{name: "workflow path", fields: provenance(repository + repositoryID + "        workflow: .github/workflows/containers.yml\n" + ref), trailer: disclosure, wantErr: "must be a workflow file name"},
 		{name: "pull request ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/pull/*/merge\n"), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
 		{name: "missing ref", fields: provenance(repository + repositoryID + workflow), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
+		{name: "oversized ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/tags/" + strings.Repeat("*", 300) + "\n"), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
+		{name: "oversized repository", fields: provenance("        repository: tinfoilsh/" + strings.Repeat("a", 200) + "\n" + repositoryID + workflow + ref), trailer: disclosure, wantErr: "must be owner/name"},
+		{name: "oversized workflow", fields: provenance(repository + repositoryID + "        workflow: " + strings.Repeat("a", 300) + ".yml\n" + ref), trailer: disclosure, wantErr: "must be a workflow file name"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			cfg, err := Decode([]byte(validConfig+test.fields+test.trailer), Options{})
