@@ -30,6 +30,31 @@ require an explicit grant; plaintext models without grants use shared mounts.
 `containers[].attestation: true` grants access to the local attestation socket.
 Access defaults to false.
 
+## Container provenance
+
+`containers[].provenance` names the GitHub Actions workflow that must have built
+the image. Verifiers reject a deployment whose attestation carries no matching
+build attestation for the image digest. The section is optional.
+
+```yaml
+security:
+  include-config-in-attestation: true
+containers:
+  - name: app
+    image: ghcr.io/example/app@sha256:<digest>
+    provenance:
+      github:
+        repository: example/app
+        repository_id: 123456789
+        workflow: release.yml
+        ref: refs/tags/v*
+```
+
+`repository_id` is the repository's numeric ID. `ref` is a tag or branch ref
+pattern in which `*` matches any run of characters other than `/`. Verifiers
+read the requirement from the config, so declaring provenance requires
+`security.include-config-in-attestation`.
+
 ## GPU security
 
 `security.allow-unencrypted-nvlink` permits multi-GPU Hopper workloads (H100 and

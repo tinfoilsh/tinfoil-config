@@ -61,6 +61,12 @@ var (
 	overlaySourcePattern = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`)
 )
 
+var (
+	githubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	githubWorkflowPattern   = regexp.MustCompile(`^[A-Za-z0-9_.-]+\.ya?ml$`)
+	githubRefPattern        = regexp.MustCompile(`^refs/(tags|heads)/[A-Za-z0-9_.*-]+(/[A-Za-z0-9_.*-]+)*$`)
+)
+
 func Validate(config *Config, options Options) error {
 	if err := validateCVMVersion(config.CVMVersion); err != nil {
 		return err
@@ -84,8 +90,26 @@ func Validate(config *Config, options Options) error {
 	if err := ValidateAttestedKeys(config); err != nil {
 		return err
 	}
+	if err := validateProvenanceDisclosure(config); err != nil {
+		return err
+	}
 	_, err = AdminSSH(config)
 	return err
+}
+
+// validateProvenanceDisclosure requires the config bytes in the attestation
+// whenever a container declares provenance: a verifier reads the requirement
+// and the image digest from those bytes.
+func validateProvenanceDisclosure(config *Config) error {
+	if config.Security.IncludeConfigInAttestation {
+		return nil
+	}
+	for index, container := range config.Containers {
+		if container.Provenance != nil {
+			return fmt.Errorf("containers[%d].provenance requires security.include-config-in-attestation", index)
+		}
+	}
+	return nil
 }
 
 func validateCVMVersion(value string) error {
@@ -330,6 +354,9 @@ func validateContainer(index int, container *Container, availableGPUs int, volum
 	if err := validateContainerImage(index, container.Image); err != nil {
 		return err
 	}
+	if err := validateContainerProvenance(index, container.Provenance); err != nil {
+		return err
+	}
 	if err := validateContainerPolicy(index, container, availableGPUs, volumes, options); err != nil {
 		return err
 	}
@@ -436,6 +463,32 @@ func validateContainerImage(index int, image string) error {
 	}
 	if _, ok := named.(reference.Digested); !ok {
 		return fmt.Errorf("containers[%d].image %q must include an immutable digest", index, image)
+	}
+	return nil
+}
+
+// validateContainerProvenance checks the shape of a build requirement. The
+// ref must name tags or branches: other ref kinds, such as pull requests, run
+// workflows from code the repository owner has not accepted.
+func validateContainerProvenance(index int, provenance *Provenance) error {
+	if provenance == nil {
+		return nil
+	}
+	github := provenance.GitHub
+	if github == nil {
+		return fmt.Errorf("containers[%d].provenance.github is required", index)
+	}
+	if !githubRepositoryPattern.MatchString(github.Repository) {
+		return fmt.Errorf("containers[%d].provenance.github.repository %q must be owner/name", index, github.Repository)
+	}
+	if github.RepositoryID <= 0 {
+		return fmt.Errorf("containers[%d].provenance.github.repository_id must be the repository's numeric ID", index)
+	}
+	if !githubWorkflowPattern.MatchString(github.Workflow) {
+		return fmt.Errorf("containers[%d].provenance.github.workflow %q must be a workflow file name", index, github.Workflow)
+	}
+	if !githubRefPattern.MatchString(github.Ref) {
+		return fmt.Errorf("containers[%d].provenance.github.ref %q must be a tag or branch ref pattern", index, github.Ref)
 	}
 	return nil
 }

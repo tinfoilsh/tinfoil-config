@@ -2,6 +2,7 @@ package tinfoilconfig
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -175,6 +176,7 @@ type AttestedKey struct {
 type Container struct {
 	Name              string            `yaml:"name"`
 	Image             string            `yaml:"image"`
+	Provenance        *Provenance       `yaml:"provenance,omitempty"`
 	CVMAdmin          bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
 	SealRegister      bool              `yaml:"seal_register,omitempty"`
 	Attestation       bool              `yaml:"attestation,omitempty"`
@@ -216,7 +218,7 @@ type containerInputFields struct {
 }
 
 var containerFields = map[string]bool{
-	"name": true, "image": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
+	"name": true, "image": true, "provenance": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
 	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
 	"volumes": true, "persistent_volumes": true, "devices": true, "cap_add": true, "runtime": true,
 	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,
@@ -260,6 +262,65 @@ func (c *Container) UnmarshalYAML(node *yaml.Node) error {
 	}
 	*c = Container(raw)
 	c.inputFields = fields
+	return nil
+}
+
+// Provenance names the build that must have produced the container image.
+// Verifiers reject a deployment whose attestation lacks a matching proof.
+type Provenance struct {
+	GitHub *GitHubProvenance `yaml:"github"`
+}
+
+// GitHubProvenance identifies a GitHub Actions workflow run. Ref is a ref
+// pattern in which "*" matches any run of characters other than "/".
+type GitHubProvenance struct {
+	Repository   string `yaml:"repository"`
+	RepositoryID int64  `yaml:"repository_id"`
+	Workflow     string `yaml:"workflow"`
+	Ref          string `yaml:"ref"`
+}
+
+func (p *Provenance) UnmarshalYAML(node *yaml.Node) error {
+	if err := requireKnownFields(node, "provenance", "github"); err != nil {
+		return err
+	}
+	type rawProvenance Provenance
+	var raw rawProvenance
+	if err := node.Decode(&raw); err != nil {
+		return err
+	}
+	*p = Provenance(raw)
+	return nil
+}
+
+func (g *GitHubProvenance) UnmarshalYAML(node *yaml.Node) error {
+	if err := requireKnownFields(node, "provenance.github", "repository", "repository_id", "workflow", "ref"); err != nil {
+		return err
+	}
+	type rawGitHubProvenance GitHubProvenance
+	var raw rawGitHubProvenance
+	if err := node.Decode(&raw); err != nil {
+		return err
+	}
+	*g = GitHubProvenance(raw)
+	return nil
+}
+
+func requireKnownFields(node *yaml.Node, name string, allowed ...string) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s must be a mapping", name)
+	}
+	seen := map[string]bool{}
+	for index := 0; index < len(node.Content); index += 2 {
+		field := node.Content[index].Value
+		if seen[field] {
+			return fmt.Errorf("duplicate %s field %q", name, field)
+		}
+		seen[field] = true
+		if !slices.Contains(allowed, field) {
+			return fmt.Errorf("unknown %s field %q", name, field)
+		}
+	}
 	return nil
 }
 
