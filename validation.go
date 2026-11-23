@@ -65,6 +65,9 @@ var (
 	githubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	githubWorkflowPattern   = regexp.MustCompile(`^[A-Za-z0-9_.-]+\.ya?ml$`)
 	githubRefPattern        = regexp.MustCompile(`^refs/(tags|heads)/[A-Za-z0-9_.*-]+(/[A-Za-z0-9_.*-]+)*$`)
+	// YAML libraries disagree on other spellings of an integer, such as a
+	// leading zero, so verifiers accept the ID only in plain decimal.
+	repositoryIDPattern = regexp.MustCompile(`^[1-9][0-9]{0,17}$`)
 )
 
 // Verifiers build a regular expression from a provenance requirement, so its

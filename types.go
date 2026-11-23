@@ -293,9 +293,20 @@ func (p *Provenance) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+const yamlIntTag = "!!int"
+
 func (g *GitHubProvenance) UnmarshalYAML(node *yaml.Node) error {
 	if err := requireKnownFields(node, "provenance.github", "repository", "repository_id", "workflow", "ref"); err != nil {
 		return err
+	}
+	for index := 0; index < len(node.Content); index += 2 {
+		value := node.Content[index+1]
+		if value.Kind == yaml.AliasNode && value.Alias != nil {
+			value = value.Alias
+		}
+		if node.Content[index].Value == "repository_id" && (value.Kind != yaml.ScalarNode || value.Tag != yamlIntTag || !repositoryIDPattern.MatchString(value.Value)) {
+			return fmt.Errorf("provenance.github.repository_id must be the repository's numeric ID in plain decimal")
+		}
 	}
 	type rawGitHubProvenance GitHubProvenance
 	var raw rawGitHubProvenance

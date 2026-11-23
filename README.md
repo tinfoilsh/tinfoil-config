@@ -50,7 +50,7 @@ containers:
         ref: refs/tags/v*
 ```
 
-`repository_id` is the repository's numeric ID. `ref` is a tag or branch ref
+`repository_id` is the repository's numeric ID in plain decimal. `ref` is a tag or branch ref
 pattern in which `*` matches any run of characters other than `/`. Verifiers
 read the requirement from the config, so declaring provenance requires
 `security.include-config-in-attestation`.
