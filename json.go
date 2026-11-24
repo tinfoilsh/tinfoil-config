@@ -49,11 +49,12 @@ func jsonCVMVersion(data []byte) (string, bool) {
 	return *pin.CVMVersion, true
 }
 
-// checkJSONForm requires the one byte form a JSON config has: RFC 8785
+// CheckJSONForm requires the one byte form a JSON config has: RFC 8785
 // canonical JSON whose numbers are integers that every implementation reads
 // exactly, without null. Each config then has a single digest, and no two
-// parsers can read its bytes differently.
-func checkJSONForm(data []byte) error {
+// parsers can read its bytes differently. It does not check the config's
+// content; Decode does both.
+func CheckJSONForm(data []byte) error {
 	decoder := jsontext.NewDecoder(bytes.NewReader(data))
 	for {
 		switch decoder.PeekKind() {
@@ -169,7 +170,7 @@ func unmarshalJSON(data []byte, target any) error {
 }
 
 func decodeJSON(data []byte, options Options) (*Config, error) {
-	if err := checkJSONForm(data); err != nil {
+	if err := CheckJSONForm(data); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 	var input struct {
