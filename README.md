@@ -1,6 +1,6 @@
 # tinfoil-config
 
-Canonical Go types and validation for the measured Tinfoil workload YAML format.
+Canonical Go types and validation for the measured Tinfoil workload config.
 
 ## Go API
 
@@ -15,10 +15,42 @@ reserved toolbox's runtime socket mounts; all other validation still applies.
 
 ```sh
 go run ./cmd/tinfoil-config config.yml
+go run ./cmd/tinfoil-config --json config.yml > config.json
+go run ./cmd/tinfoil-config --schema
 ```
 
 The command exits non-zero and prints the schema or policy violation for
 invalid input.
+
+## JSON configs
+
+A config that pins `cvm-version` `0.15.5-rc.1` or later (`JSONConfigMinVersion`)
+is JSON. Its bytes are what is stored, measured and read, by the guest and by
+verifiers, and YAML is refused there. Earlier versions keep YAML unchanged.
+
+The bytes have exactly one form per config, so a config has exactly one digest:
+
+- RFC 8785 canonical JSON: no whitespace, members sorted, minimal escaping.
+- Numbers are integers between -(2^53-1) and 2^53-1. Fractional quantities
+  (`containers[].cpus`, `shim.rate-limit`), durations and IDs
+  (`provenance.github.repository_id`) are strings.
+- No `null`: an absent member is left out.
+
+`Normalize` returns those bytes for any input: it translates YAML, puts JSON in
+canonical form, and returns a config for an earlier version as it is. `ToJSON`
+is the translation alone. It is literal and goes one way: every member the YAML
+states appears under the same name, nothing is added, and defaults stay with the
+reader. Two things are made explicit because JSON has no equivalent:
+
+- A network written with no settings (`app:`) becomes `{}`.
+- A literal environment value becomes the text the container receives
+  (`PORT: 8080` becomes `"8080"`). A value YAML would alter, such as an unquoted
+  `1.10` (read as `1.1`), is refused until it is quoted.
+
+Anchors, aliases and merge keys are not translated.
+
+`tinfoil-config.schema.json` is the JSON Schema of the JSON form, generated from
+the Go types (`JSONSchema`). YAML uses the same names and nesting.
 
 ## Model grants
 
