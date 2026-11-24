@@ -1,9 +1,11 @@
-package tinfoilconfig
+package yamlconfig_test
 
 import (
 	"strings"
 	"testing"
 
+	. "github.com/tinfoilsh/tinfoil-config"
+	"github.com/tinfoilsh/tinfoil-config/yamlconfig"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,7 +30,7 @@ func TestDecodeSecurityPolicy(t *testing.T) {
 		{name: "duplicate section", fields: "security: {}\nsecurity:\n  allow-unencrypted-nvlink: true\n", wantErr: "already defined"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			config, err := Decode([]byte(validConfig+test.fields), Options{})
+			config, err := yamlconfig.Decode([]byte(validConfig+test.fields), Options{})
 			if test.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 					t.Fatalf("Decode error = %v, want %q", err, test.wantErr)
@@ -45,7 +47,7 @@ func TestDecodeSecurityPolicy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			roundTrip, err := Decode(encoded, Options{})
+			roundTrip, err := yamlconfig.Decode(encoded, Options{})
 			if err != nil {
 				t.Fatal(err)
 			}

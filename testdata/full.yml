@@ -1,0 +1,57 @@
+cvm-version: 0.15.5-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+cpus: 8
+memory: 16384
+gpus: 2
+shim:
+  upstream-port: 8080
+  paths: [/v1/chat/completions, /health]
+  rate-limit: 0.5
+  drain_connections: true
+  drain_timeout: 90s
+  authenticated-endpoints: []
+cvm-network:
+  inbound-ports: [8443]
+networks:
+  app:
+  web:
+    egress: allowlist
+    allow: [example.com]
+security:
+  include-config-in-attestation: true
+  allow-unencrypted-nvlink: true
+volumes:
+  - name: data
+    size: 10GiB
+containers:
+  - name: app
+    image: example.com/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    provenance:
+      github:
+        repository: example/app
+        repository_id: 123456789
+        workflow: release.yml
+        ref: refs/tags/v*
+    command: [serve, --port, "8080"]
+    env:
+      - HF_TOKEN
+      - PORT: 8080
+      - DEBUG: true
+      - VERSION: "1.10"
+    networks: [app, web]
+    persistent_volumes: [data:/data]
+    runtime: nvidia
+    gpus: 2
+    cpus: 1.5
+    read_only: true
+    pids_limit: 4096
+    stop_timeout: 30
+    tmpfs:
+      /tmp: size=64m
+    healthcheck:
+      test: [CMD, "true"]
+      retries: 3
+  - name: worker
+    image: example.com/worker@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    networks: [app]
+    runtime: nvidia
+    gpus: "0,1"

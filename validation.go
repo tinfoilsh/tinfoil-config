@@ -516,15 +516,6 @@ func validateContainerPolicy(index int, container *Container, availableGPUs int,
 			return fmt.Errorf("containers[%d].seal_register requires a numeric uid in user", index)
 		}
 	}
-	if container.inputFields.privileged {
-		return fmt.Errorf("containers[%d].privileged is unsupported", index)
-	}
-	if container.inputFields.capDrop {
-		return fmt.Errorf("containers[%d].cap_drop is unsupported", index)
-	}
-	if container.inputFields.securityOpt {
-		return fmt.Errorf("containers[%d].security_opt is unsupported", index)
-	}
 	if container.PidMode != "" {
 		return fmt.Errorf("containers[%d].pid is unsupported", index)
 	}

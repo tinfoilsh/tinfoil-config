@@ -37,18 +37,6 @@ func RequiresJSON(cvmVersion string) bool {
 	return semver.Compare("v"+strings.TrimPrefix(version, "v"), JSONConfigMinVersion) >= 0
 }
 
-// jsonCVMVersion returns the cvm-version of data read as a JSON object, and
-// whether data is one that states it.
-func jsonCVMVersion(data []byte) (string, bool) {
-	var pin struct {
-		CVMVersion *string `json:"cvm-version"`
-	}
-	if err := json.Unmarshal(data, &pin); err != nil || pin.CVMVersion == nil {
-		return "", false
-	}
-	return *pin.CVMVersion, true
-}
-
 // CheckJSONForm requires the one byte form a JSON config has: RFC 8785
 // canonical JSON whose numbers are integers that every implementation reads
 // exactly, without null. Each config then has a single digest, and no two
@@ -167,44 +155,6 @@ func readJSONString(decoder *jsontext.Decoder) (string, error) {
 
 func unmarshalJSON(data []byte, target any) error {
 	return json.Unmarshal(data, target, json.RejectUnknownMembers(true), json.WithUnmarshalers(jsonUnmarshalers))
-}
-
-func decodeJSON(data []byte, options Options) (*Config, error) {
-	if err := CheckJSONForm(data); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
-	}
-	var input struct {
-		*Config
-		Shim jsontext.Value `json:"shim"`
-	}
-	input.Config = &Config{}
-	if err := unmarshalJSON(data, &input); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
-	}
-	config := input.Config
-	shimConfig, err := decodeShimJSON(input.Shim)
-	if err != nil {
-		return nil, fmt.Errorf("parsing shim config: %w", err)
-	}
-	for index := range config.Containers {
-		for _, item := range config.Containers[index].Env {
-			entry, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			for name, value := range entry {
-				if _, ok := value.(string); !ok {
-					return nil, fmt.Errorf("parsing config: containers[%d].env.%s must be a string", index, name)
-				}
-			}
-		}
-	}
-	for _, network := range config.Networks {
-		if network.Egress == "" {
-			network.Egress = "closed"
-		}
-	}
-	return finishDecode(config, shimConfig, options)
 }
 
 func decodeShimJSON(data jsontext.Value) (*ShimConfig, error) {

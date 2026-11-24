@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tinfoilconfig "github.com/tinfoilsh/tinfoil-config"
+	"github.com/tinfoilsh/tinfoil-config/yamlconfig"
 )
 
 func main() {
@@ -35,7 +36,7 @@ func main() {
 		options.Mode = tinfoilconfig.HostDebugMode
 	}
 	if *toJSON {
-		normalized, err := tinfoilconfig.Normalize(data, options)
+		normalized, err := yamlconfig.Normalize(data, options)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "invalid tinfoil config: %v\n", err)
 			os.Exit(1)
@@ -43,7 +44,7 @@ func main() {
 		os.Stdout.Write(normalized)
 		return
 	}
-	if err := tinfoilconfig.ValidateBytes(data, options); err != nil {
+	if err := yamlconfig.ValidateBytes(data, options); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid tinfoil config: %v\n", err)
 		os.Exit(1)
 	}

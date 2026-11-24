@@ -2,11 +2,8 @@ package tinfoilconfig
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -20,8 +17,8 @@ const (
 )
 
 // ValidationMode selects which producer is allowed to construct the config.
-// WorkloadMode is for user-supplied measured YAML. HostDebugMode is only for
-// YAML after tinfoild has injected its reserved debug toolbox.
+// WorkloadMode is for a user-supplied measured config. HostDebugMode is only
+// for a config after tinfoild has injected its reserved debug toolbox.
 type ValidationMode uint8
 
 const (
@@ -35,8 +32,7 @@ type Options struct {
 
 type Config struct {
 	CVMVersion   string                  `yaml:"cvm-version" json:"cvm-version"`
-	ShimRaw      yaml.Node               `yaml:"shim" json:"-"`
-	ShimCfg      *ShimConfig             `yaml:"-" json:"-"`
+	ShimCfg      *ShimConfig             `yaml:"shim" json:"-"`
 	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network" json:"cvm-network"`
 	Networks     map[string]*NetworkSpec `yaml:"networks" json:"networks"`
 	CPUs         int                     `yaml:"cpus" json:"cpus"`
@@ -62,40 +58,6 @@ type CVMNetworkConfig struct {
 type NetworkSpec struct {
 	Egress string   `yaml:"egress" json:"egress"`
 	Allow  []string `yaml:"allow" json:"allow"`
-}
-
-func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		if node.Tag != "!!null" {
-			return fmt.Errorf("network entry must be a mapping or null")
-		}
-		n.Egress = "closed"
-		return nil
-	}
-	if node.Kind != yaml.MappingNode {
-		return fmt.Errorf("network entry must be a mapping")
-	}
-	seen := map[string]bool{}
-	for index := 0; index < len(node.Content); index += 2 {
-		field := node.Content[index].Value
-		if seen[field] {
-			return fmt.Errorf("duplicate network field %q", field)
-		}
-		seen[field] = true
-		if field != "egress" && field != "allow" {
-			return fmt.Errorf("unknown network field %q", field)
-		}
-	}
-	type alias NetworkSpec
-	var raw alias
-	if err := node.Decode(&raw); err != nil {
-		return err
-	}
-	*n = NetworkSpec(raw)
-	if n.Egress == "" {
-		n.Egress = "closed"
-	}
-	return nil
 }
 
 type VolumeSpec struct {
@@ -208,61 +170,6 @@ type Container struct {
 	StopSignal        string            `yaml:"stop_signal,omitempty" json:"stop_signal"`
 	StopTimeout       *int              `yaml:"stop_timeout,omitempty" json:"stop_timeout"`
 	Healthcheck       *Healthcheck      `yaml:"healthcheck,omitempty" json:"healthcheck"`
-	inputFields       containerInputFields
-}
-
-type containerInputFields struct {
-	privileged  bool
-	capDrop     bool
-	securityOpt bool
-}
-
-var containerFields = map[string]bool{
-	"name": true, "image": true, "provenance": true, "cvm_admin": true, "seal_register": true, "attestation": true, "command": true, "entrypoint": true,
-	"working_dir": true, "user": true, "env": true, "secrets": true, "models": true, "keys": true,
-	"volumes": true, "persistent_volumes": true, "devices": true, "cap_add": true, "runtime": true,
-	"networks": true, "ports": true, "ipc": true, "pid": true, "gpus": true,
-	"shm_size": true, "memory": true, "cpus": true, "tmpfs": true,
-	"read_only": true, "pids_limit": true, "restart": true,
-	"stop_signal": true, "stop_timeout": true, "healthcheck": true,
-	"privileged": true, "cap_drop": true, "security_opt": true,
-}
-
-func (c *Container) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind != yaml.MappingNode {
-		return fmt.Errorf("container entry must be a mapping")
-	}
-	var fields containerInputFields
-	seen := map[string]bool{}
-	for index := 0; index < len(node.Content); index += 2 {
-		field := node.Content[index].Value
-		if field == "<<" {
-			return fmt.Errorf("container YAML merge keys are unsupported")
-		}
-		if seen[field] {
-			return fmt.Errorf("duplicate container field %q", field)
-		}
-		seen[field] = true
-		if !containerFields[field] {
-			return fmt.Errorf("unknown container field %q", field)
-		}
-		switch field {
-		case "privileged":
-			fields.privileged = true
-		case "cap_drop":
-			fields.capDrop = true
-		case "security_opt":
-			fields.securityOpt = true
-		}
-	}
-	type rawContainer Container
-	var raw rawContainer
-	if err := node.Decode(&raw); err != nil {
-		return err
-	}
-	*c = Container(raw)
-	c.inputFields = fields
-	return nil
 }
 
 // Provenance names the build that must have produced the container image.
@@ -280,93 +187,10 @@ type GitHubProvenance struct {
 	Ref          string `yaml:"ref" json:"ref"`
 }
 
-func (p *Provenance) UnmarshalYAML(node *yaml.Node) error {
-	if err := requireKnownFields(node, "provenance", "github"); err != nil {
-		return err
-	}
-	type rawProvenance Provenance
-	var raw rawProvenance
-	if err := node.Decode(&raw); err != nil {
-		return err
-	}
-	*p = Provenance(raw)
-	return nil
-}
-
-const yamlIntTag = "!!int"
-
-func (g *GitHubProvenance) UnmarshalYAML(node *yaml.Node) error {
-	if err := requireKnownFields(node, "provenance.github", "repository", "repository_id", "workflow", "ref"); err != nil {
-		return err
-	}
-	for index := 0; index < len(node.Content); index += 2 {
-		value := node.Content[index+1]
-		if value.Kind == yaml.AliasNode && value.Alias != nil {
-			value = value.Alias
-		}
-		if node.Content[index].Value == "repository_id" && (value.Kind != yaml.ScalarNode || value.Tag != yamlIntTag || !repositoryIDPattern.MatchString(value.Value)) {
-			return fmt.Errorf("provenance.github.repository_id must be the repository's numeric ID in plain decimal")
-		}
-	}
-	type rawGitHubProvenance GitHubProvenance
-	var raw rawGitHubProvenance
-	if err := node.Decode(&raw); err != nil {
-		return err
-	}
-	*g = GitHubProvenance(raw)
-	return nil
-}
-
-func requireKnownFields(node *yaml.Node, name string, allowed ...string) error {
-	if node.Kind != yaml.MappingNode {
-		return fmt.Errorf("%s must be a mapping", name)
-	}
-	seen := map[string]bool{}
-	for index := 0; index < len(node.Content); index += 2 {
-		field := node.Content[index].Value
-		if seen[field] {
-			return fmt.Errorf("duplicate %s field %q", name, field)
-		}
-		seen[field] = true
-		if !slices.Contains(allowed, field) {
-			return fmt.Errorf("unknown %s field %q", name, field)
-		}
-	}
-	return nil
-}
-
 type Healthcheck struct {
 	Test        []string `yaml:"test" json:"test"`
 	Interval    string   `yaml:"interval,omitempty" json:"interval"`
 	Timeout     string   `yaml:"timeout,omitempty" json:"timeout"`
 	Retries     int      `yaml:"retries,omitempty" json:"retries"`
 	StartPeriod string   `yaml:"start_period,omitempty" json:"start_period"`
-}
-
-func (h *Healthcheck) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind != yaml.MappingNode {
-		return fmt.Errorf("healthcheck must be a mapping")
-	}
-	allowed := map[string]bool{
-		"test": true, "interval": true, "timeout": true,
-		"retries": true, "start_period": true,
-	}
-	seen := map[string]bool{}
-	for index := 0; index < len(node.Content); index += 2 {
-		field := node.Content[index].Value
-		if seen[field] {
-			return fmt.Errorf("duplicate healthcheck field %q", field)
-		}
-		seen[field] = true
-		if !allowed[field] {
-			return fmt.Errorf("unknown healthcheck field %q", field)
-		}
-	}
-	type rawHealthcheck Healthcheck
-	var raw rawHealthcheck
-	if err := node.Decode(&raw); err != nil {
-		return err
-	}
-	*h = Healthcheck(raw)
-	return nil
 }

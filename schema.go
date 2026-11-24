@@ -6,6 +6,12 @@ import (
 	"encoding/json/v2"
 	"reflect"
 	"strings"
+	"time"
+)
+
+var (
+	durationType = reflect.TypeFor[time.Duration]()
+	shimType     = reflect.TypeFor[ShimConfig]()
 )
 
 const (

@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"time"
-
-	"github.com/creasty/defaults"
-	"gopkg.in/yaml.v3"
 )
 
 const DefaultDrainTimeout = 5 * time.Minute
@@ -43,23 +40,6 @@ func (c *ShimConfig) SetDefaults() {
 	}
 }
 
-func DecodeShim(node *yaml.Node) (*ShimConfig, error) {
-	if err := validateYAMLTree(node); err != nil {
-		return nil, fmt.Errorf("failed to decode config: %v", err)
-	}
-	var config ShimConfig
-	if err := defaults.Set(&config); err != nil {
-		return nil, fmt.Errorf("failed to set defaults: %v", err)
-	}
-	if err := node.Decode(&config); err != nil {
-		return nil, fmt.Errorf("failed to decode config: %v", err)
-	}
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	return &config, nil
-}
-
 func (c *ShimConfig) Validate() error {
 	if c.DrainTimeout < 0 || c.DrainConnections && c.DrainTimeout == 0 {
 		return fmt.Errorf("drain_timeout must be positive")
@@ -78,46 +58,6 @@ func (c *ShimConfig) Validate() error {
 	}
 	if c.TLSWildcard && c.TLSChallengeMode != "dns" {
 		return fmt.Errorf("tls-wildcard requires tls-challenge: dns (wildcard certs cannot use %s challenge)", c.TLSChallengeMode)
-	}
-	return nil
-}
-
-func validateYAMLTree(root *yaml.Node) error {
-	if root == nil {
-		return fmt.Errorf("missing YAML document")
-	}
-	type pendingNode struct {
-		node  *yaml.Node
-		depth int
-	}
-	stack := []pendingNode{{node: root, depth: 1}}
-	const maxNodes = 16384
-	const maxDepth = 64
-	nodes := 0
-	valueBytes := 0
-	for len(stack) > 0 {
-		pending := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if pending.node == nil {
-			continue
-		}
-		nodes++
-		if nodes > maxNodes {
-			return fmt.Errorf("YAML node count exceeds %d", maxNodes)
-		}
-		if pending.depth > maxDepth {
-			return fmt.Errorf("YAML nesting exceeds depth %d", maxDepth)
-		}
-		if pending.node.Kind == yaml.AliasNode || pending.node.Alias != nil {
-			return fmt.Errorf("YAML aliases are unsupported")
-		}
-		valueBytes += len(pending.node.Value) + len(pending.node.Tag) + len(pending.node.Anchor)
-		if valueBytes > 1<<20 {
-			return fmt.Errorf("YAML scalar data exceeds %d-byte limit", 1<<20)
-		}
-		for index := len(pending.node.Content) - 1; index >= 0; index-- {
-			stack = append(stack, pendingNode{node: pending.node.Content[index], depth: pending.depth + 1})
-		}
 	}
 	return nil
 }

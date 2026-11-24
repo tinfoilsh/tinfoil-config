@@ -1,67 +1,68 @@
 package tinfoilconfig
 
 import (
-	"bytes"
+	"encoding/json/jsontext"
 	"fmt"
-	"io"
-
-	"gopkg.in/yaml.v3"
 )
 
 const MaxConfigBytes = 1 << 20
 
-// Decode reads and validates a config. A config that pins JSONConfigMinVersion
-// or a later cvm-version must be JSON in its canonical form; earlier ones are
-// YAML.
+// Decode reads and validates a config. A config is JSON in its one byte form
+// (see CheckJSONForm) and pins JSONConfigMinVersion or a later cvm-version.
+// This package reads nothing else: the YAML that earlier versions measure,
+// and that people write, is read and translated by the yamlconfig package.
 func Decode(data []byte, options Options) (*Config, error) {
 	if len(data) > MaxConfigBytes {
 		return nil, fmt.Errorf("parsing config: input exceeds %d-byte limit", MaxConfigBytes)
 	}
-	if version, ok := jsonCVMVersion(data); ok && RequiresJSON(version) {
-		return decodeJSON(data, options)
+	if err := CheckJSONForm(data); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
 	}
-	config, err := decodeYAML(data, options)
+	var input struct {
+		*Config
+		Shim jsontext.Value `json:"shim"`
+	}
+	input.Config = &Config{}
+	if err := unmarshalJSON(data, &input); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	config := input.Config
+	if !RequiresJSON(config.CVMVersion) {
+		return nil, fmt.Errorf("parsing config: a JSON config pins cvm-version %s or later (got %q)", JSONConfigMinVersion, config.CVMVersion)
+	}
+	shimConfig, err := decodeShimJSON(input.Shim)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing shim config: %w", err)
 	}
-	if RequiresJSON(config.CVMVersion) {
-		return nil, fmt.Errorf("parsing config: cvm-version %s and later take a JSON config; convert this one with ToJSON", JSONConfigMinVersion)
+	for index := range config.Containers {
+		for _, item := range config.Containers[index].Env {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			for name, value := range entry {
+				if _, ok := value.(string); !ok {
+					return nil, fmt.Errorf("parsing config: containers[%d].env.%s must be a string", index, name)
+				}
+			}
+		}
+	}
+	if err := Finalize(config, shimConfig, options); err != nil {
+		return nil, err
 	}
 	return config, nil
 }
 
-func decodeYAML(data []byte, options Options) (*Config, error) {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	var config Config
-	if err := decoder.Decode(&config); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
-	}
-	var trailing yaml.Node
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return nil, fmt.Errorf("parsing config: multiple YAML documents")
-		}
-		return nil, fmt.Errorf("parsing config: %w", err)
-	}
-	shimConfig, err := DecodeShim(&config.ShimRaw)
-	if err != nil {
-		return nil, fmt.Errorf("parsing shim config: %w", err)
-	}
-	return finishDecode(&config, shimConfig, options)
-}
-
-func finishDecode(config *Config, shimConfig *ShimConfig, options Options) (*Config, error) {
+// Finalize attaches the shim settings to a decoded config, fills the values
+// that depend on the whole config, and validates it. A decoder calls it last.
+func Finalize(config *Config, shimConfig *ShimConfig, options Options) error {
 	shimConfig.ExpectedGPUs = config.GPUs
 	if shimConfig.UpstreamContainer == "" && len(config.Containers) > 0 {
 		shimConfig.UpstreamContainer = config.Containers[0].Name
 	}
 	config.ShimCfg = shimConfig
 	setNetworkDefaults(config)
-	if err := Validate(config, options); err != nil {
-		return nil, err
-	}
-	return config, nil
+	return Validate(config, options)
 }
 
 func ValidateBytes(data []byte, options Options) error {
@@ -72,7 +73,11 @@ func ValidateBytes(data []byte, options Options) error {
 func setNetworkDefaults(config *Config) {
 	for name, spec := range config.Networks {
 		if spec == nil {
-			config.Networks[name] = &NetworkSpec{Egress: "closed"}
+			spec = &NetworkSpec{}
+			config.Networks[name] = spec
+		}
+		if spec.Egress == "" {
+			spec.Egress = "closed"
 		}
 	}
 }

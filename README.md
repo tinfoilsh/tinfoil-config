@@ -8,6 +8,11 @@ Canonical Go types and validation for the measured Tinfoil workload config.
 cfg, err := tinfoilconfig.Decode(data, tinfoilconfig.Options{})
 ```
 
+The root package reads the measured JSON config and nothing else, so a program
+that imports only it links no YAML parser. The `yamlconfig` package is for
+programs that meet YAML: `yamlconfig.Decode` reads a config of any version,
+and `yamlconfig.Normalize` returns the bytes to store and launch.
+
 Use `HostDebugMode` for trusted debug-toolbox configuration. It permits the
 reserved toolbox's runtime socket mounts; all other validation still applies.
 
@@ -36,9 +41,9 @@ The bytes have exactly one form per config, so a config has exactly one digest:
   (`provenance.github.repository_id`) are strings.
 - No `null`: an absent member is left out.
 
-`Normalize` returns those bytes for any input: it translates YAML, puts JSON in
-canonical form, and returns a config for an earlier version as it is. `ToJSON`
-is the translation alone. It is literal and goes one way: every member the YAML
+`yamlconfig.Normalize` returns those bytes for any input: it translates YAML,
+puts JSON in canonical form, and returns a config for an earlier version as it
+is. `yamlconfig.ToJSON` is the translation alone. It is literal and goes one way: every member the YAML
 states appears under the same name, nothing is added, and defaults stay with the
 reader. Two things are made explicit because JSON has no equivalent:
 

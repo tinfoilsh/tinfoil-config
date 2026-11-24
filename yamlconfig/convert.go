@@ -1,4 +1,4 @@
-package tinfoilconfig
+package yamlconfig
 
 import (
 	"bytes"
@@ -6,19 +6,20 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	tinfoilconfig "github.com/tinfoilsh/tinfoil-config"
 	"gopkg.in/yaml.v3"
 )
 
-const yamlNullTag = "!!null"
-
 var (
-	yamlNodeType = reflect.TypeFor[yaml.Node]()
 	durationType = reflect.TypeFor[time.Duration]()
-	shimType     = reflect.TypeFor[ShimConfig]()
+	// decimalPattern is how a JSON config writes a fractional quantity, as
+	// tinfoilconfig reads it back.
+	decimalPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
 )
 
 // Normalize returns the bytes that represent a config everywhere it is
@@ -26,16 +27,16 @@ var (
 // later cvm-version becomes canonical JSON, whether it arrives as YAML or as
 // JSON; an earlier one is returned as it is. Either way the config is
 // validated.
-func Normalize(data []byte, options Options) ([]byte, error) {
-	if len(data) > MaxConfigBytes {
-		return nil, fmt.Errorf("parsing config: input exceeds %d-byte limit", MaxConfigBytes)
+func Normalize(data []byte, options tinfoilconfig.Options) ([]byte, error) {
+	if len(data) > tinfoilconfig.MaxConfigBytes {
+		return nil, fmt.Errorf("parsing config: input exceeds %d-byte limit", tinfoilconfig.MaxConfigBytes)
 	}
-	if version, ok := jsonCVMVersion(data); ok && RequiresJSON(version) {
+	if version, ok := jsonCVMVersion(data); ok && tinfoilconfig.RequiresJSON(version) {
 		canonical := jsontext.Value(bytes.Clone(data))
 		if err := canonical.Canonicalize(); err != nil {
 			return nil, fmt.Errorf("parsing config: %w", err)
 		}
-		if _, err := decodeJSON(canonical, options); err != nil {
+		if _, err := tinfoilconfig.Decode(canonical, options); err != nil {
 			return nil, err
 		}
 		return canonical, nil
@@ -44,7 +45,7 @@ func Normalize(data []byte, options Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !RequiresJSON(config.CVMVersion) {
+	if !tinfoilconfig.RequiresJSON(config.CVMVersion) {
 		return data, nil
 	}
 	return ToJSON(data, options)
@@ -55,7 +56,7 @@ func Normalize(data []byte, options Options) ([]byte, error) {
 // value the YAML decoder reads for that field, and nothing else is added, so
 // defaults stay the reader's. It goes one way only; nothing reads YAML back
 // from the result.
-func ToJSON(data []byte, options Options) ([]byte, error) {
+func ToJSON(data []byte, options tinfoilconfig.Options) ([]byte, error) {
 	fromYAML, err := decodeYAML(data, options)
 	if err != nil {
 		return nil, err
@@ -70,7 +71,7 @@ func ToJSON(data []byte, options Options) ([]byte, error) {
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
 		return nil, fmt.Errorf("converting config: missing YAML document")
 	}
-	tree, err := convertNode(document.Content[0], reflect.TypeFor[Config](), "config")
+	tree, err := convertNode(document.Content[0], reflect.TypeFor[tinfoilconfig.Config](), "config")
 	if err != nil {
 		return nil, fmt.Errorf("converting config: %w", err)
 	}
@@ -84,7 +85,7 @@ func ToJSON(data []byte, options Options) ([]byte, error) {
 	}
 	// The translation must not change what the config means. Reading both
 	// forms and comparing them catches any case the walk above gets wrong.
-	fromJSON, err := decodeJSON(canonical, options)
+	fromJSON, err := tinfoilconfig.Decode(canonical, options)
 	if err != nil {
 		return nil, fmt.Errorf("converting config: the JSON form is not valid: %w", err)
 	}
@@ -94,12 +95,11 @@ func ToJSON(data []byte, options Options) ([]byte, error) {
 	return canonical, nil
 }
 
-// comparable returns config without the parts that differ between a YAML and
-// a JSON reading of the same content: the raw shim node, and the types of
-// literal environment values, which a container receives as text either way.
-func comparable(config *Config) *Config {
+// comparable returns config without the one thing that differs between a
+// YAML and a JSON reading of the same content: the types of literal
+// environment values, which a container receives as text either way.
+func comparable(config *tinfoilconfig.Config) *tinfoilconfig.Config {
 	copied := *config
-	copied.ShimRaw = yaml.Node{}
 	copied.Containers = slices.Clone(config.Containers)
 	for index := range copied.Containers {
 		container := &copied.Containers[index]
@@ -124,10 +124,7 @@ func convertNode(node *yaml.Node, t reflect.Type, path string) (any, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	switch {
-	case t == yamlNodeType:
-		return convertNode(node, shimType, path)
-	case t == durationType:
+	if t == durationType {
 		return convertDuration(node, path)
 	}
 	switch t.Kind() {
@@ -198,9 +195,9 @@ func convertStruct(node *yaml.Node, t reflect.Type, path string) (any, error) {
 		var value any
 		var err error
 		switch {
-		case t == reflect.TypeFor[Container]() && name == "env":
+		case t == reflect.TypeFor[tinfoilconfig.Container]() && name == "env":
 			value, err = convertEnv(item, memberPath)
-		case t == reflect.TypeFor[GitHubProvenance]() && name == "repository_id":
+		case t == reflect.TypeFor[tinfoilconfig.GitHubProvenance]() && name == "repository_id":
 			// IDs are strings in JSON, so that no reader rounds one.
 			value = item.Value
 		default:
@@ -227,7 +224,7 @@ func convertMap(node *yaml.Node, elem reflect.Type, path string) (any, error) {
 		}
 		if isNull(item) {
 			// A network with no settings is the one entry null stands for.
-			if elem != reflect.TypeFor[*NetworkSpec]() {
+			if elem != reflect.TypeFor[*tinfoilconfig.NetworkSpec]() {
 				return nil, fmt.Errorf("%s must not be null", memberPath)
 			}
 			members[name] = map[string]any{}
