@@ -61,7 +61,7 @@ func TestJSONConfigMustBeInItsOneForm(t *testing.T) {
 		"unsupported field":    {replace(`"provenance":{"github"`, `"privileged":true,"provenance":{"github"`), "unknown"},
 		"second value":         {canonical + canonical, ""},
 		"earlier version":      {replace(`"cvm-version":"0.15.5-rc.1@`, `"cvm-version":"0.15.5-rc.0@`), "pins cvm-version"},
-		"YAML":                 {"cvm-version: 0.15.5-rc.1@sha256:" + strings.Repeat("a", 64) + "\nshim:\n  upstream-port: 8080\n", ""},
+		"YAML":                 {"cvm-version: 0.15.5-rc.1@sha256:" + strings.Repeat("a", 64) + "\nshim:\n  upstream-port: 8080\n", "take a JSON config"},
 		"not an object":        {"[" + canonical + "]", ""},
 	} {
 		t.Run(name, func(t *testing.T) {

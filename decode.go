@@ -16,7 +16,7 @@ func Decode(data []byte, options Options) (*Config, error) {
 		return nil, fmt.Errorf("parsing config: input exceeds %d-byte limit", MaxConfigBytes)
 	}
 	if err := CheckJSONForm(data); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+		return nil, fmt.Errorf("parsing config: cvm-version %s and later take a JSON config: %w", JSONConfigMinVersion, err)
 	}
 	var input struct {
 		*Config
