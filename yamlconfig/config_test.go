@@ -1,4 +1,4 @@
-package tinfoilconfig
+package yamlconfig_test
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/tinfoilsh/tinfoil-config"
+	"github.com/tinfoilsh/tinfoil-config/yamlconfig"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,7 +24,7 @@ func TestConnectionDrainSettings(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := strings.Replace(validConfig, "upstream-port: 8080", "upstream-port: 8080"+tc.fields, 1)
-			cfg, err := Decode([]byte(data), Options{})
+			cfg, err := yamlconfig.Decode([]byte(data), Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -34,7 +36,7 @@ func TestConnectionDrainSettings(t *testing.T) {
 	for _, value := range []string{"0s", "-1s", "forever", "10"} {
 		t.Run(value, func(t *testing.T) {
 			data := strings.Replace(validConfig, "upstream-port: 8080", "upstream-port: 8080\n  drain_connections: true\n  drain_timeout: "+value, 1)
-			if _, err := Decode([]byte(data), Options{}); err == nil {
+			if _, err := yamlconfig.Decode([]byte(data), Options{}); err == nil {
 				t.Fatalf("accepted invalid drain_timeout %q", value)
 			}
 		})
@@ -94,7 +96,7 @@ func TestDecodeValidation(t *testing.T) {
 		{name: "negative model schema", yaml: validConfig + "models:\n  - repo: org/model@revision\n    schema: -1\n", want: "schema must be a positive integer"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := Decode([]byte(test.yaml), test.options)
+			_, err := yamlconfig.Decode([]byte(test.yaml), test.options)
 			if test.want == "" && err != nil {
 				t.Fatal(err)
 			}
@@ -106,7 +108,7 @@ func TestDecodeValidation(t *testing.T) {
 }
 
 func TestDecodeSetsDefaults(t *testing.T) {
-	config, err := Decode([]byte(validConfig), Options{})
+	config, err := yamlconfig.Decode([]byte(validConfig), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +140,7 @@ func TestContainerAttestation(t *testing.T) {
 		{name: "duplicate", fields: "    attestation: true\n    attestation: false\n", wantErr: "duplicate container field"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			cfg, err := Decode([]byte(validConfig+test.fields), Options{})
+			cfg, err := yamlconfig.Decode([]byte(validConfig+test.fields), Options{})
 			if test.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 					t.Fatalf("error = %v, want substring %q", err, test.wantErr)
@@ -185,7 +187,7 @@ func TestCVMAdminPolicy(t *testing.T) {
 		{name: "false keeps socket closed", yaml: strings.Replace(admin, "cvm_admin: true", "cvm_admin: false", 1) + "    volumes: [/run/docker.sock:/var/run/docker.sock]\n", want: "must use a named volume source"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			cfg, err := Decode([]byte(test.yaml), Options{})
+			cfg, err := yamlconfig.Decode([]byte(test.yaml), Options{})
 			if test.want != "" {
 				if err == nil || !strings.Contains(err.Error(), test.want) {
 					t.Fatalf("error = %v, want substring %q", err, test.want)
@@ -200,7 +202,7 @@ func TestCVMAdminPolicy(t *testing.T) {
 			}
 		})
 	}
-	cfg, err := Decode([]byte(validConfig), Options{})
+	cfg, err := yamlconfig.Decode([]byte(validConfig), Options{})
 	if err != nil || cfg.Containers[0].CVMAdmin {
 		t.Fatalf("ordinary config acquired admin permission: cfg=%+v err=%v", cfg, err)
 	}
@@ -227,7 +229,7 @@ func TestDecodeValidatesModelAccess(t *testing.T) {
 		{name: "duplicate model", yaml: strings.Replace(strings.Replace(base, "containers:\n", "  - name: private-model\n    mwp: "+ref+"\ncontainers:\n", 1), "networks: [app]", "networks: [app]\n    models: [private-model]", 1), want: "duplicates"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := Decode([]byte(test.yaml), Options{})
+			_, err := yamlconfig.Decode([]byte(test.yaml), Options{})
 			if test.want == "" && err != nil {
 				t.Fatal(err)
 			}
@@ -238,7 +240,7 @@ func TestDecodeValidatesModelAccess(t *testing.T) {
 	}
 
 	plaintext := strings.Replace(validConfig, "containers:\n", "models:\n  - name: public-model\n    mwp: "+ref+"\ncontainers:\n", 1)
-	config, err := Decode([]byte(plaintext), Options{})
+	config, err := yamlconfig.Decode([]byte(plaintext), Options{})
 	if err != nil {
 		t.Fatalf("legacy plaintext model without grant: %v", err)
 	}
@@ -247,7 +249,7 @@ func TestDecodeValidatesModelAccess(t *testing.T) {
 	}
 
 	isolatedPlaintext := strings.Replace(plaintext, "networks: [app]", "networks: [app]\n    models: [public-model]", 1)
-	config, err = Decode([]byte(isolatedPlaintext), Options{})
+	config, err = yamlconfig.Decode([]byte(isolatedPlaintext), Options{})
 	if err != nil {
 		t.Fatalf("isolated plaintext model: %v", err)
 	}
@@ -256,13 +258,13 @@ func TestDecodeValidatesModelAccess(t *testing.T) {
 	}
 
 	namelessPlaintext := strings.Replace(plaintext, "  - name: public-model\n    mwp:", "  - mwp:", 1)
-	if _, err := Decode([]byte(namelessPlaintext), Options{}); err != nil {
+	if _, err := yamlconfig.Decode([]byte(namelessPlaintext), Options{}); err != nil {
 		t.Fatalf("legacy nameless plaintext model: %v", err)
 	}
 }
 
 func TestDecodeShimRejectsNilNode(t *testing.T) {
-	_, err := DecodeShim(nil)
+	_, err := yamlconfig.DecodeShim(nil)
 	if err == nil || !strings.Contains(err.Error(), "missing YAML document") {
 		t.Fatalf("error = %v, want missing YAML document", err)
 	}
@@ -324,7 +326,7 @@ func TestAttestedKeyConfig(t *testing.T) {
 		{"volume parent", strings.Replace(valid, "    keys:", "    persistent_volumes: [state:/run]\n    keys:", 1) + "volumes: [{name: state}]\n", "conflicts with attested key"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := Decode([]byte(tc.input), Options{})
+			cfg, err := yamlconfig.Decode([]byte(tc.input), Options{})
 			if tc.want != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.want) {
 					t.Fatalf("got %v, want %q", err, tc.want)
@@ -338,7 +340,7 @@ func TestAttestedKeyConfig(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			roundTrip, err := Decode(encoded, Options{})
+			roundTrip, err := yamlconfig.Decode(encoded, Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -350,7 +352,7 @@ func TestAttestedKeyConfig(t *testing.T) {
 }
 
 func TestAttestedKeyLimitsAndSharing(t *testing.T) {
-	cfg, err := Decode([]byte(keyConfig()), Options{})
+	cfg, err := yamlconfig.Decode([]byte(keyConfig()), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +389,7 @@ func TestAdminSSH(t *testing.T) {
 		{"duplicate mapping", strings.Replace(base, "'3000:3000'", "'22:22'", 1), false, "already published"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := Decode([]byte(tc.input), Options{})
+			cfg, err := yamlconfig.Decode([]byte(tc.input), Options{})
 			if tc.want != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.want) {
 					t.Fatalf("got %v, want %q", err, tc.want)
@@ -456,7 +458,7 @@ func TestContainerProvenance(t *testing.T) {
 		{name: "oversized workflow", fields: provenance(repository + repositoryID + "        workflow: " + strings.Repeat("a", 300) + ".yml\n" + ref), trailer: disclosure, wantErr: "must be a workflow file name"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			cfg, err := Decode([]byte(validConfig+test.fields+test.trailer), Options{})
+			cfg, err := yamlconfig.Decode([]byte(validConfig+test.fields+test.trailer), Options{})
 			if test.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 					t.Fatalf("error = %v, want substring %q", err, test.wantErr)
@@ -486,7 +488,7 @@ func TestConfigAttestationDisclosure(t *testing.T) {
 		if include {
 			data += "\nsecurity:\n  include-config-in-attestation: true\n"
 		}
-		config, err := Decode([]byte(data), Options{})
+		config, err := yamlconfig.Decode([]byte(data), Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -522,7 +524,12 @@ func TestRuntimeDigestPinStartsAtVersion015(t *testing.T) {
 	} {
 		t.Run(test.version, func(t *testing.T) {
 			data := []byte(strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+test.version, 1))
-			config, err := Decode(data, Options{})
+			if RequiresJSON(test.version) {
+				if converted, err := yamlconfig.ToJSON(data, Options{}); err == nil {
+					data = converted
+				}
+			}
+			config, err := yamlconfig.Decode(data, Options{})
 			if (err == nil) != test.valid {
 				t.Fatalf("Decode error = %v, want valid = %v", err, test.valid)
 			}
