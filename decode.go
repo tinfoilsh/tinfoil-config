@@ -10,10 +10,27 @@ import (
 
 const MaxConfigBytes = 1 << 20
 
+// Decode reads and validates a config. A config that pins JSONConfigMinVersion
+// or a later cvm-version must be JSON in its canonical form; earlier ones are
+// YAML.
 func Decode(data []byte, options Options) (*Config, error) {
 	if len(data) > MaxConfigBytes {
 		return nil, fmt.Errorf("parsing config: input exceeds %d-byte limit", MaxConfigBytes)
 	}
+	if version, ok := jsonCVMVersion(data); ok && RequiresJSON(version) {
+		return decodeJSON(data, options)
+	}
+	config, err := decodeYAML(data, options)
+	if err != nil {
+		return nil, err
+	}
+	if RequiresJSON(config.CVMVersion) {
+		return nil, fmt.Errorf("parsing config: cvm-version %s and later take a JSON config; convert this one with ToJSON", JSONConfigMinVersion)
+	}
+	return config, nil
+}
+
+func decodeYAML(data []byte, options Options) (*Config, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	var config Config
@@ -31,16 +48,20 @@ func Decode(data []byte, options Options) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing shim config: %w", err)
 	}
+	return finishDecode(&config, shimConfig, options)
+}
+
+func finishDecode(config *Config, shimConfig *ShimConfig, options Options) (*Config, error) {
 	shimConfig.ExpectedGPUs = config.GPUs
 	if shimConfig.UpstreamContainer == "" && len(config.Containers) > 0 {
 		shimConfig.UpstreamContainer = config.Containers[0].Name
 	}
 	config.ShimCfg = shimConfig
-	setNetworkDefaults(&config)
-	if err := Validate(&config, options); err != nil {
+	setNetworkDefaults(config)
+	if err := Validate(config, options); err != nil {
 		return nil, err
 	}
-	return &config, nil
+	return config, nil
 }
 
 func ValidateBytes(data []byte, options Options) error {

@@ -12,29 +12,29 @@ import (
 const DefaultDrainTimeout = 5 * time.Minute
 
 type ShimConfig struct {
-	UpstreamPort      int      `yaml:"upstream-port"`
-	UpstreamContainer string   `yaml:"upstream-container,omitempty"`
-	Paths             []string `yaml:"paths"`
-	OriginDomains     []string `yaml:"origins"`
+	UpstreamPort      int      `yaml:"upstream-port" json:"upstream-port"`
+	UpstreamContainer string   `yaml:"upstream-container,omitempty" json:"upstream-container"`
+	Paths             []string `yaml:"paths" json:"paths"`
+	OriginDomains     []string `yaml:"origins" json:"origins"`
 
-	TLSMode          string `yaml:"tls-mode" default:"cert-proxy"`
-	TLSEnv           string `yaml:"tls-env" default:"production"`
-	TLSChallengeMode string `yaml:"tls-challenge" default:"dns"`
-	TLSWildcard      bool   `yaml:"tls-wildcard" default:"false"`
-	TLSOwnSANDomain  bool   `yaml:"tls-own-san-domain" default:"false"`
+	TLSMode          string `yaml:"tls-mode" default:"cert-proxy" json:"tls-mode"`
+	TLSEnv           string `yaml:"tls-env" default:"production" json:"tls-env"`
+	TLSChallengeMode string `yaml:"tls-challenge" default:"dns" json:"tls-challenge"`
+	TLSWildcard      bool   `yaml:"tls-wildcard" default:"false" json:"tls-wildcard"`
+	TLSOwnSANDomain  bool   `yaml:"tls-own-san-domain" default:"false" json:"tls-own-san-domain"`
 
-	ControlPlane           string        `yaml:"control-plane" default:"https://api.tinfoil.sh"`
-	ATC                    string        `yaml:"atc" default:"https://atc.tinfoil.sh"`
-	Authenticated          bool          `yaml:"authenticated" default:"false"`
-	AuthenticatedEndpoints *[]string     `yaml:"authenticated-endpoints"`
-	RateLimit              float64       `yaml:"rate-limit"`
-	RateBurst              int           `yaml:"rate-burst"`
-	DrainConnections       bool          `yaml:"drain_connections" default:"false"`
-	DrainTimeout           time.Duration `yaml:"drain_timeout"`
-	Email                  string        `yaml:"email" default:"tls@tinfoil.sh"`
-	PublishAttestation     bool          `yaml:"publish-attestation" default:"true"`
-	DummyAttestation       bool          `yaml:"dummy-attestation" default:"false"`
-	ExpectedGPUs           int           `yaml:"expected-gpus" default:"0"`
+	ControlPlane           string        `yaml:"control-plane" default:"https://api.tinfoil.sh" json:"control-plane"`
+	ATC                    string        `yaml:"atc" default:"https://atc.tinfoil.sh" json:"atc"`
+	Authenticated          bool          `yaml:"authenticated" default:"false" json:"authenticated"`
+	AuthenticatedEndpoints *[]string     `yaml:"authenticated-endpoints" json:"authenticated-endpoints"`
+	RateLimit              float64       `yaml:"rate-limit" json:"rate-limit"`
+	RateBurst              int           `yaml:"rate-burst" json:"rate-burst"`
+	DrainConnections       bool          `yaml:"drain_connections" default:"false" json:"drain_connections"`
+	DrainTimeout           time.Duration `yaml:"drain_timeout" json:"drain_timeout"`
+	Email                  string        `yaml:"email" default:"tls@tinfoil.sh" json:"email"`
+	PublishAttestation     bool          `yaml:"publish-attestation" default:"true" json:"publish-attestation"`
+	DummyAttestation       bool          `yaml:"dummy-attestation" default:"false" json:"dummy-attestation"`
+	ExpectedGPUs           int           `yaml:"expected-gpus" default:"0" json:"expected-gpus"`
 }
 
 func (c *ShimConfig) SetDefaults() {

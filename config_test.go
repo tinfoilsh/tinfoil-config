@@ -522,6 +522,11 @@ func TestRuntimeDigestPinStartsAtVersion015(t *testing.T) {
 	} {
 		t.Run(test.version, func(t *testing.T) {
 			data := []byte(strings.Replace(validConfig, "cvm-version: 0.11.0", "cvm-version: "+test.version, 1))
+			if RequiresJSON(test.version) {
+				if converted, err := ToJSON(data, Options{}); err == nil {
+					data = converted
+				}
+			}
 			config, err := Decode(data, Options{})
 			if (err == nil) != test.valid {
 				t.Fatalf("Decode error = %v, want valid = %v", err, test.valid)

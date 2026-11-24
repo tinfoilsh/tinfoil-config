@@ -1,6 +1,6 @@
 module github.com/tinfoilsh/tinfoil-config
 
-go 1.22.0
+go 1.27.3
 
 require (
 	github.com/creasty/defaults v1.8.0

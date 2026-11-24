@@ -34,34 +34,34 @@ type Options struct {
 }
 
 type Config struct {
-	CVMVersion   string                  `yaml:"cvm-version"`
-	ShimRaw      yaml.Node               `yaml:"shim"`
-	ShimCfg      *ShimConfig             `yaml:"-"`
-	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network"`
-	Networks     map[string]*NetworkSpec `yaml:"networks"`
-	CPUs         int                     `yaml:"cpus"`
-	Memory       int                     `yaml:"memory"`
-	GPUs         int                     `yaml:"gpus"`
-	Security     SecurityConfig          `yaml:"security,omitempty"`
-	Models       []ModelSpec             `yaml:"models"`
-	Volumes      []VolumeSpec            `yaml:"volumes"`
-	AttestedKeys []AttestedKey           `yaml:"attested-keys,omitempty"`
-	Containers   []Container             `yaml:"containers"`
-	KeyserverURL string                  `yaml:"keyserver-url,omitempty"`
+	CVMVersion   string                  `yaml:"cvm-version" json:"cvm-version"`
+	ShimRaw      yaml.Node               `yaml:"shim" json:"-"`
+	ShimCfg      *ShimConfig             `yaml:"-" json:"-"`
+	CVMNetwork   CVMNetworkConfig        `yaml:"cvm-network" json:"cvm-network"`
+	Networks     map[string]*NetworkSpec `yaml:"networks" json:"networks"`
+	CPUs         int                     `yaml:"cpus" json:"cpus"`
+	Memory       int                     `yaml:"memory" json:"memory"`
+	GPUs         int                     `yaml:"gpus" json:"gpus"`
+	Security     SecurityConfig          `yaml:"security,omitempty" json:"security"`
+	Models       []ModelSpec             `yaml:"models" json:"models"`
+	Volumes      []VolumeSpec            `yaml:"volumes" json:"volumes"`
+	AttestedKeys []AttestedKey           `yaml:"attested-keys,omitempty" json:"attested-keys"`
+	Containers   []Container             `yaml:"containers" json:"containers"`
+	KeyserverURL string                  `yaml:"keyserver-url,omitempty" json:"keyserver-url"`
 }
 
 type SecurityConfig struct {
-	AllowUnencryptedNVLink     bool `yaml:"allow-unencrypted-nvlink,omitempty"`
-	IncludeConfigInAttestation bool `yaml:"include-config-in-attestation,omitempty"`
+	AllowUnencryptedNVLink     bool `yaml:"allow-unencrypted-nvlink,omitempty" json:"allow-unencrypted-nvlink"`
+	IncludeConfigInAttestation bool `yaml:"include-config-in-attestation,omitempty" json:"include-config-in-attestation"`
 }
 
 type CVMNetworkConfig struct {
-	InboundPorts []int `yaml:"inbound-ports"`
+	InboundPorts []int `yaml:"inbound-ports" json:"inbound-ports"`
 }
 
 type NetworkSpec struct {
-	Egress string   `yaml:"egress"`
-	Allow  []string `yaml:"allow"`
+	Egress string   `yaml:"egress" json:"egress"`
+	Allow  []string `yaml:"allow" json:"allow"`
 }
 
 func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
@@ -99,16 +99,16 @@ func (n *NetworkSpec) UnmarshalYAML(node *yaml.Node) error {
 }
 
 type VolumeSpec struct {
-	Name      string          `yaml:"name"`
-	Exec      bool            `yaml:"exec,omitempty"`
-	Owner     string          `yaml:"owner,omitempty"`
-	KeySecret string          `yaml:"key-secret,omitempty"`
-	Overlays  []VolumeOverlay `yaml:"overlays,omitempty"`
+	Name      string          `yaml:"name" json:"name"`
+	Exec      bool            `yaml:"exec,omitempty" json:"exec"`
+	Owner     string          `yaml:"owner,omitempty" json:"owner"`
+	KeySecret string          `yaml:"key-secret,omitempty" json:"key-secret"`
+	Overlays  []VolumeOverlay `yaml:"overlays,omitempty" json:"overlays"`
 	// Size is the capacity of the disk backing the volume, such as "500GiB"
 	// or "16TB" (see ParseSize). Empty leaves the size to the host's default.
 	// The host allocates the disk once, on first launch; changing the size
 	// afterwards does not resize it.
-	Size string `yaml:"size,omitempty"`
+	Size string `yaml:"size,omitempty" json:"size"`
 }
 
 // SizeBytes returns the declared Size in bytes, or 0 when the host default
@@ -144,23 +144,23 @@ func (v *VolumeSpec) OwnerIDs() (uid, gid int, err error) {
 // measured here rather than chosen at unlock, so no runtime caller can steer
 // the mount.
 type VolumeOverlay struct {
-	Model  string `yaml:"model"`
-	Source string `yaml:"source"`
-	Target string `yaml:"target"`
+	Model  string `yaml:"model" json:"model"`
+	Source string `yaml:"source" json:"source"`
+	Target string `yaml:"target" json:"target"`
 }
 
 type ModelSpec struct {
-	Name      string `yaml:"name,omitempty"`
-	Repo      string `yaml:"repo,omitempty"`
-	MPK       string `yaml:"mpk,omitempty"`
-	MWP       string `yaml:"mwp,omitempty"`
-	EMWP      string `yaml:"emwp,omitempty"`
-	KeySecret string `yaml:"key-secret,omitempty"`
+	Name      string `yaml:"name,omitempty" json:"name"`
+	Repo      string `yaml:"repo,omitempty" json:"repo"`
+	MPK       string `yaml:"mpk,omitempty" json:"mpk"`
+	MWP       string `yaml:"mwp,omitempty" json:"mwp"`
+	EMWP      string `yaml:"emwp,omitempty" json:"emwp"`
+	KeySecret string `yaml:"key-secret,omitempty" json:"key-secret"`
 	// Weights are never programs, so a pack is noexec unless declared otherwise.
-	Exec bool `yaml:"exec,omitempty"`
+	Exec bool `yaml:"exec,omitempty" json:"exec"`
 	// Schema is the pack schema the pinned artifact was built with (0 = schema 1,
 	// the original layout). Declarative for now; no consumer reads it yet.
-	Schema int `yaml:"schema,omitempty"`
+	Schema int `yaml:"schema,omitempty" json:"schema"`
 }
 
 // AttestedKey declares a boot-generated key. The runtime exports PKCS#8 private
@@ -174,40 +174,40 @@ type AttestedKey struct {
 }
 
 type Container struct {
-	Name              string            `yaml:"name"`
-	Image             string            `yaml:"image"`
-	Provenance        *Provenance       `yaml:"provenance,omitempty"`
-	CVMAdmin          bool              `yaml:"cvm_admin,omitempty"` // Delegates administration of the entire CVM.
-	SealRegister      bool              `yaml:"seal_register,omitempty"`
-	Attestation       bool              `yaml:"attestation,omitempty"`
-	Command           []string          `yaml:"command,omitempty"`
-	Entrypoint        []string          `yaml:"entrypoint,omitempty"`
-	WorkingDir        string            `yaml:"working_dir,omitempty"`
-	User              string            `yaml:"user,omitempty"`
-	Env               []interface{}     `yaml:"env,omitempty"`
-	Secrets           []string          `yaml:"secrets,omitempty"`
-	Models            []string          `yaml:"models,omitempty"`
-	Keys              []string          `yaml:"keys,omitempty"`
-	Volumes           []string          `yaml:"volumes,omitempty"`
-	PersistentVolumes []string          `yaml:"persistent_volumes,omitempty"`
-	Devices           []string          `yaml:"devices,omitempty"`
-	CapAdd            []string          `yaml:"cap_add,omitempty"`
-	Runtime           string            `yaml:"runtime,omitempty"`
-	Networks          []string          `yaml:"networks,omitempty"`
-	Ports             []string          `yaml:"ports,omitempty"`
-	IPC               string            `yaml:"ipc,omitempty"`
-	PidMode           string            `yaml:"pid,omitempty"`
-	GPUs              interface{}       `yaml:"gpus,omitempty"`
-	ShmSize           string            `yaml:"shm_size,omitempty"`
-	Memory            string            `yaml:"memory,omitempty"`
-	CPUs              float64           `yaml:"cpus,omitempty"`
-	Tmpfs             map[string]string `yaml:"tmpfs,omitempty"`
-	ReadOnly          *bool             `yaml:"read_only,omitempty"`
-	PidsLimit         *int64            `yaml:"pids_limit,omitempty"`
-	Restart           string            `yaml:"restart,omitempty"`
-	StopSignal        string            `yaml:"stop_signal,omitempty"`
-	StopTimeout       *int              `yaml:"stop_timeout,omitempty"`
-	Healthcheck       *Healthcheck      `yaml:"healthcheck,omitempty"`
+	Name              string            `yaml:"name" json:"name"`
+	Image             string            `yaml:"image" json:"image"`
+	Provenance        *Provenance       `yaml:"provenance,omitempty" json:"provenance"`
+	CVMAdmin          bool              `yaml:"cvm_admin,omitempty" json:"cvm_admin"` // Delegates administration of the entire CVM.
+	SealRegister      bool              `yaml:"seal_register,omitempty" json:"seal_register"`
+	Attestation       bool              `yaml:"attestation,omitempty" json:"attestation"`
+	Command           []string          `yaml:"command,omitempty" json:"command"`
+	Entrypoint        []string          `yaml:"entrypoint,omitempty" json:"entrypoint"`
+	WorkingDir        string            `yaml:"working_dir,omitempty" json:"working_dir"`
+	User              string            `yaml:"user,omitempty" json:"user"`
+	Env               []interface{}     `yaml:"env,omitempty" json:"env"`
+	Secrets           []string          `yaml:"secrets,omitempty" json:"secrets"`
+	Models            []string          `yaml:"models,omitempty" json:"models"`
+	Keys              []string          `yaml:"keys,omitempty" json:"keys"`
+	Volumes           []string          `yaml:"volumes,omitempty" json:"volumes"`
+	PersistentVolumes []string          `yaml:"persistent_volumes,omitempty" json:"persistent_volumes"`
+	Devices           []string          `yaml:"devices,omitempty" json:"devices"`
+	CapAdd            []string          `yaml:"cap_add,omitempty" json:"cap_add"`
+	Runtime           string            `yaml:"runtime,omitempty" json:"runtime"`
+	Networks          []string          `yaml:"networks,omitempty" json:"networks"`
+	Ports             []string          `yaml:"ports,omitempty" json:"ports"`
+	IPC               string            `yaml:"ipc,omitempty" json:"ipc"`
+	PidMode           string            `yaml:"pid,omitempty" json:"pid"`
+	GPUs              interface{}       `yaml:"gpus,omitempty" json:"gpus"`
+	ShmSize           string            `yaml:"shm_size,omitempty" json:"shm_size"`
+	Memory            string            `yaml:"memory,omitempty" json:"memory"`
+	CPUs              float64           `yaml:"cpus,omitempty" json:"cpus"`
+	Tmpfs             map[string]string `yaml:"tmpfs,omitempty" json:"tmpfs"`
+	ReadOnly          *bool             `yaml:"read_only,omitempty" json:"read_only"`
+	PidsLimit         *int64            `yaml:"pids_limit,omitempty" json:"pids_limit"`
+	Restart           string            `yaml:"restart,omitempty" json:"restart"`
+	StopSignal        string            `yaml:"stop_signal,omitempty" json:"stop_signal"`
+	StopTimeout       *int              `yaml:"stop_timeout,omitempty" json:"stop_timeout"`
+	Healthcheck       *Healthcheck      `yaml:"healthcheck,omitempty" json:"healthcheck"`
 	inputFields       containerInputFields
 }
 
@@ -268,16 +268,16 @@ func (c *Container) UnmarshalYAML(node *yaml.Node) error {
 // Provenance names the build that must have produced the container image.
 // Verifiers reject a deployment whose attestation lacks a matching proof.
 type Provenance struct {
-	GitHub *GitHubProvenance `yaml:"github"`
+	GitHub *GitHubProvenance `yaml:"github" json:"github"`
 }
 
 // GitHubProvenance identifies a GitHub Actions workflow run. Ref is a ref
 // pattern in which "*" matches any run of characters other than "/".
 type GitHubProvenance struct {
-	Repository   string `yaml:"repository"`
-	RepositoryID int64  `yaml:"repository_id"`
-	Workflow     string `yaml:"workflow"`
-	Ref          string `yaml:"ref"`
+	Repository   string `yaml:"repository" json:"repository"`
+	RepositoryID int64  `yaml:"repository_id" json:"repository_id"`
+	Workflow     string `yaml:"workflow" json:"workflow"`
+	Ref          string `yaml:"ref" json:"ref"`
 }
 
 func (p *Provenance) UnmarshalYAML(node *yaml.Node) error {
@@ -336,11 +336,11 @@ func requireKnownFields(node *yaml.Node, name string, allowed ...string) error {
 }
 
 type Healthcheck struct {
-	Test        []string `yaml:"test"`
-	Interval    string   `yaml:"interval,omitempty"`
-	Timeout     string   `yaml:"timeout,omitempty"`
-	Retries     int      `yaml:"retries,omitempty"`
-	StartPeriod string   `yaml:"start_period,omitempty"`
+	Test        []string `yaml:"test" json:"test"`
+	Interval    string   `yaml:"interval,omitempty" json:"interval"`
+	Timeout     string   `yaml:"timeout,omitempty" json:"timeout"`
+	Retries     int      `yaml:"retries,omitempty" json:"retries"`
+	StartPeriod string   `yaml:"start_period,omitempty" json:"start_period"`
 }
 
 func (h *Healthcheck) UnmarshalYAML(node *yaml.Node) error {
