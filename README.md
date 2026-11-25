@@ -84,12 +84,15 @@ containers:
         repository: example/app
         repository_id: 123456789
         workflow: release.yml
-        ref: refs/tags/v*
+        ref: refs/tags/v1.2.3
+        commit: 4f1c2d3e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d
 ```
 
-`repository_id` is the repository's numeric ID in plain decimal. `ref` is a tag or branch ref
-pattern in which `*` matches any run of characters other than `/`. Verifiers
-read the requirement from the config, so declaring provenance requires
+`repository_id` is the repository's numeric ID in plain decimal. `ref` is the
+exact tag or branch ref the workflow ran for, such as `refs/heads/main`.
+`commit` is the source commit it built, as 40 lowercase hexadecimal characters;
+YAML takes it as the text written, quoted or not. All five members are required.
+Verifiers read the requirement from the config, so declaring provenance requires
 `security.include-config-in-attestation`.
 
 ## GPU security

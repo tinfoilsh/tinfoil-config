@@ -295,8 +295,9 @@ func (c *container) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // checkProvenance applies the rules a provenance section has in YAML before
-// it is decoded: only known fields, none repeated, and the repository ID
-// written in plain decimal.
+// it is decoded: only known fields, none repeated, the repository ID written
+// in plain decimal, and the commit a scalar read as the text written, even
+// when that text looks like a number.
 func checkProvenance(node *yaml.Node) error {
 	if err := requireKnownFields(node, "provenance", "github"); err != nil {
 		return err
@@ -306,13 +307,17 @@ func checkProvenance(node *yaml.Node) error {
 		if github.ShortTag() == yamlNullTag {
 			continue
 		}
-		if err := requireKnownFields(github, "provenance.github", "repository", "repository_id", "workflow", "ref"); err != nil {
+		if err := requireKnownFields(github, "provenance.github", "repository", "repository_id", "workflow", "ref", "commit"); err != nil {
 			return err
 		}
 		for member := 0; member < len(github.Content); member += 2 {
 			value := resolved(github.Content[member+1])
 			if github.Content[member].Value == "repository_id" && (value.Kind != yaml.ScalarNode || value.Tag != yamlIntTag || !repositoryIDPattern.MatchString(value.Value)) {
 				return fmt.Errorf("provenance.github.repository_id must be the repository's numeric ID in plain decimal")
+			}
+			var commit string
+			if github.Content[member].Value == "commit" && (value.Kind != yaml.ScalarNode || value.Decode(&commit) != nil || commit != value.Value) {
+				return fmt.Errorf("provenance.github.commit must be the commit hash as text; quote it")
 			}
 		}
 	}

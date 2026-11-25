@@ -181,6 +181,7 @@ func (g *GitHubProvenance) UnmarshalJSON(data []byte) error {
 		RepositoryID string `json:"repository_id"`
 		Workflow     string `json:"workflow"`
 		Ref          string `json:"ref"`
+		Commit       string `json:"commit"`
 	}
 	if err := json.Unmarshal(data, &raw, json.RejectUnknownMembers(true)); err != nil {
 		return err
@@ -192,6 +193,6 @@ func (g *GitHubProvenance) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	*g = GitHubProvenance{Repository: raw.Repository, RepositoryID: id, Workflow: raw.Workflow, Ref: raw.Ref}
+	*g = GitHubProvenance{Repository: raw.Repository, RepositoryID: id, Workflow: raw.Workflow, Ref: raw.Ref, Commit: raw.Commit}
 	return nil
 }

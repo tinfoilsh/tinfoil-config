@@ -425,7 +425,9 @@ func TestContainerProvenance(t *testing.T) {
 	const repository = "        repository: tinfoilsh/inference\n"
 	const repositoryID = "        repository_id: 902195777\n"
 	const workflow = "        workflow: containers.yml\n"
-	const ref = "        ref: refs/tags/vllm-v*\n"
+	const ref = "        ref: refs/tags/vllm-v1.2.3\n"
+	const commitHash = "9c2e4f6a8b0d1c3e5f7a9b1d3c5e7f9a0b2d4c6e"
+	const commit = "        commit: " + commitHash + "\n"
 	for _, test := range []struct {
 		name    string
 		fields  string
@@ -433,29 +435,35 @@ func TestContainerProvenance(t *testing.T) {
 		wantErr string
 	}{
 		{name: "absent"},
-		{name: "declared", fields: provenance(repository + repositoryID + workflow + ref), trailer: disclosure},
-		{name: "branch ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/heads/main\n"), trailer: disclosure},
-		{name: "config not disclosed", fields: provenance(repository + repositoryID + workflow + ref), wantErr: "requires security.include-config-in-attestation"},
+		{name: "declared", fields: provenance(repository + repositoryID + workflow + ref + commit), trailer: disclosure},
+		{name: "branch ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/heads/main\n" + commit), trailer: disclosure},
+		{name: "config not disclosed", fields: provenance(repository + repositoryID + workflow + ref + commit), wantErr: "requires security.include-config-in-attestation"},
 		{name: "no source", fields: "    provenance: {}\n", trailer: disclosure, wantErr: "provenance.github is required"},
 		{name: "unknown source", fields: "    provenance:\n      gitlab: {}\n", trailer: disclosure, wantErr: `unknown provenance field "gitlab"`},
-		{name: "unknown key", fields: provenance(repository + repositoryID + workflow + ref + "        commit: abc\n"), trailer: disclosure, wantErr: `unknown provenance.github field "commit"`},
-		{name: "duplicate key", fields: provenance(repository + repository + repositoryID + workflow + ref), trailer: disclosure, wantErr: `duplicate provenance.github field "repository"`},
+		{name: "unknown key", fields: provenance(repository + repositoryID + workflow + ref + commit + "        sha: abc\n"), trailer: disclosure, wantErr: `unknown provenance.github field "sha"`},
+		{name: "duplicate key", fields: provenance(repository + repository + repositoryID + workflow + ref + commit), trailer: disclosure, wantErr: `duplicate provenance.github field "repository"`},
 		{name: "not a mapping", fields: "    provenance: tinfoilsh/inference\n", trailer: disclosure, wantErr: "provenance must be a mapping"},
-		{name: "repository without owner", fields: provenance("        repository: inference\n" + repositoryID + workflow + ref), trailer: disclosure, wantErr: "must be owner/name"},
-		{name: "missing repository ID", fields: provenance(repository + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID with a leading zero", fields: provenance(repository + "        repository_id: 0902195777\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID in hex", fields: provenance(repository + "        repository_id: 0x35c66b01\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID grouped", fields: provenance(repository + "        repository_id: 902_195_777\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID as a float", fields: provenance(repository + "        repository_id: 9.02195777e8\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID with a sign", fields: provenance(repository + "        repository_id: +902195777\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID zero", fields: provenance(repository + "        repository_id: 0\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "repository ID too long", fields: provenance(repository + "        repository_id: " + strings.Repeat("9", 19) + "\n" + workflow + ref), trailer: disclosure, wantErr: "repository_id must be"},
-		{name: "workflow path", fields: provenance(repository + repositoryID + "        workflow: .github/workflows/containers.yml\n" + ref), trailer: disclosure, wantErr: "must be a workflow file name"},
-		{name: "pull request ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/pull/*/merge\n"), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
-		{name: "missing ref", fields: provenance(repository + repositoryID + workflow), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
-		{name: "oversized ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/tags/" + strings.Repeat("*", 300) + "\n"), trailer: disclosure, wantErr: "must be a tag or branch ref pattern"},
-		{name: "oversized repository", fields: provenance("        repository: tinfoilsh/" + strings.Repeat("a", 200) + "\n" + repositoryID + workflow + ref), trailer: disclosure, wantErr: "must be owner/name"},
-		{name: "oversized workflow", fields: provenance(repository + repositoryID + "        workflow: " + strings.Repeat("a", 300) + ".yml\n" + ref), trailer: disclosure, wantErr: "must be a workflow file name"},
+		{name: "repository without owner", fields: provenance("        repository: inference\n" + repositoryID + workflow + ref + commit), trailer: disclosure, wantErr: "must be owner/name"},
+		{name: "missing repository ID", fields: provenance(repository + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID with a leading zero", fields: provenance(repository + "        repository_id: 0902195777\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID in hex", fields: provenance(repository + "        repository_id: 0x35c66b01\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID grouped", fields: provenance(repository + "        repository_id: 902_195_777\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID as a float", fields: provenance(repository + "        repository_id: 9.02195777e8\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID with a sign", fields: provenance(repository + "        repository_id: +902195777\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID zero", fields: provenance(repository + "        repository_id: 0\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "repository ID too long", fields: provenance(repository + "        repository_id: " + strings.Repeat("9", 19) + "\n" + workflow + ref + commit), trailer: disclosure, wantErr: "repository_id must be"},
+		{name: "workflow path", fields: provenance(repository + repositoryID + "        workflow: .github/workflows/containers.yml\n" + ref + commit), trailer: disclosure, wantErr: "must be a workflow file name"},
+		{name: "pull request ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/pull/7/merge\n" + commit), trailer: disclosure, wantErr: "must be an exact tag or branch ref"},
+		{name: "ref with a wildcard", fields: provenance(repository + repositoryID + workflow + "        ref: refs/tags/vllm-v*\n" + commit), trailer: disclosure, wantErr: "must be an exact tag or branch ref"},
+		{name: "missing ref", fields: provenance(repository + repositoryID + workflow + commit), trailer: disclosure, wantErr: "must be an exact tag or branch ref"},
+		{name: "oversized ref", fields: provenance(repository + repositoryID + workflow + "        ref: refs/tags/" + strings.Repeat("a", 300) + "\n" + commit), trailer: disclosure, wantErr: "must be an exact tag or branch ref"},
+		{name: "oversized repository", fields: provenance("        repository: tinfoilsh/" + strings.Repeat("a", 200) + "\n" + repositoryID + workflow + ref + commit), trailer: disclosure, wantErr: "must be owner/name"},
+		{name: "oversized workflow", fields: provenance(repository + repositoryID + "        workflow: " + strings.Repeat("a", 300) + ".yml\n" + ref + commit), trailer: disclosure, wantErr: "must be a workflow file name"},
+		{name: "missing commit", fields: provenance(repository + repositoryID + workflow + ref), trailer: disclosure, wantErr: "must be 40 lowercase hexadecimal characters"},
+		{name: "short commit", fields: provenance(repository + repositoryID + workflow + ref + "        commit: " + commitHash[1:] + "\n"), trailer: disclosure, wantErr: "must be 40 lowercase hexadecimal characters"},
+		{name: "long commit", fields: provenance(repository + repositoryID + workflow + ref + "        commit: " + commitHash + "0\n"), trailer: disclosure, wantErr: "must be 40 lowercase hexadecimal characters"},
+		{name: "uppercase commit", fields: provenance(repository + repositoryID + workflow + ref + "        commit: " + strings.ToUpper(commitHash) + "\n"), trailer: disclosure, wantErr: "must be 40 lowercase hexadecimal characters"},
+		{name: "commit outside hex", fields: provenance(repository + repositoryID + workflow + ref + "        commit: g" + commitHash[1:] + "\n"), trailer: disclosure, wantErr: "must be 40 lowercase hexadecimal characters"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			cfg, err := yamlconfig.Decode([]byte(validConfig+test.fields+test.trailer), Options{})
@@ -475,7 +483,7 @@ func TestContainerProvenance(t *testing.T) {
 				}
 				return
 			}
-			if got == nil || got.GitHub == nil || got.GitHub.Repository != "tinfoilsh/inference" || got.GitHub.RepositoryID != 902195777 || got.GitHub.Workflow != "containers.yml" {
+			if got == nil || got.GitHub == nil || got.GitHub.Repository != "tinfoilsh/inference" || got.GitHub.RepositoryID != 902195777 || got.GitHub.Workflow != "containers.yml" || got.GitHub.Commit != commitHash {
 				t.Fatalf("provenance = %+v", got)
 			}
 		})

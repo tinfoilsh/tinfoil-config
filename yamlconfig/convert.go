@@ -197,8 +197,8 @@ func convertStruct(node *yaml.Node, t reflect.Type, path string) (any, error) {
 		switch {
 		case t == reflect.TypeFor[tinfoilconfig.Container]() && name == "env":
 			value, err = convertEnv(item, memberPath)
-		case t == reflect.TypeFor[tinfoilconfig.GitHubProvenance]() && name == "repository_id":
-			// IDs are strings in JSON, so that no reader rounds one.
+		case t == reflect.TypeFor[tinfoilconfig.GitHubProvenance]() && (name == "repository_id" || name == "commit"):
+			// IDs and commits are strings in JSON, so that no reader rounds one.
 			value = item.Value
 		default:
 			value, err = convertNode(item, field.Type, memberPath)
