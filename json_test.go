@@ -57,12 +57,47 @@ func TestJSONConfigMustBeInItsOneForm(t *testing.T) {
 		"number for a decimal": {replace(`"cpus":"1.5"`, `"cpus":1`), "must be a string"},
 		"number for an ID":     {replace(`"repository_id":"123456789"`, `"repository_id":123456789`), "repository_id"},
 		"ID with leading zero": {replace(`"repository_id":"123456789"`, `"repository_id":"0123456789"`), "plain decimal"},
+		"number for a commit":  {replace(`"commit":"4f1c2d3e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d"`, `"commit":123`), "commit"},
 		"number in env":        {replace(`{"PORT":"8080"}`, `{"PORT":8080}`), "must be a string"},
 		"unsupported field":    {replace(`"provenance":{"github"`, `"privileged":true,"provenance":{"github"`), "unknown"},
 		"second value":         {canonical + canonical, ""},
 		"earlier version":      {replace(`"cvm-version":"0.15.5-rc.1@`, `"cvm-version":"0.15.5-rc.0@`), "pins cvm-version"},
 		"YAML":                 {"cvm-version: 0.15.5-rc.1@sha256:" + strings.Repeat("a", 64) + "\nshim:\n  upstream-port: 8080\n", "take a JSON config"},
 		"not an object":        {"[" + canonical + "]", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Decode([]byte(test.config), Options{})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestJSONProvenancePinsACommitAndAnExactRef(t *testing.T) {
+	canonical := fullJSON(t)
+	const commit = "4f1c2d3e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d"
+	config, err := Decode([]byte(canonical), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := config.Containers[0].Provenance.GitHub.Commit; got != commit {
+		t.Fatalf("commit = %q, want %q", got, commit)
+	}
+	replace := func(old, new string) string {
+		if !strings.Contains(canonical, old) {
+			t.Fatalf("test config lacks %q", old)
+		}
+		return strings.Replace(canonical, old, new, 1)
+	}
+	const commitRule = "must be 40 lowercase hexadecimal characters"
+	for name, test := range map[string]struct{ config, want string }{
+		"missing commit":      {replace(`"commit":"`+commit+`",`, ""), commitRule},
+		"short commit":        {replace(commit, commit[1:]), commitRule},
+		"long commit":         {replace(commit, commit+"0"), commitRule},
+		"uppercase commit":    {replace(commit, strings.ToUpper(commit)), commitRule},
+		"commit outside hex":  {replace(commit, "g"+commit[1:]), commitRule},
+		"ref with a wildcard": {replace(`"ref":"refs/tags/v1.2.3"`, `"ref":"refs/tags/v*"`), "must be an exact tag or branch ref"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := Decode([]byte(test.config), Options{})

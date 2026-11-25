@@ -64,14 +64,15 @@ var (
 var (
 	githubRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	githubWorkflowPattern   = regexp.MustCompile(`^[A-Za-z0-9_.-]+\.ya?ml$`)
-	githubRefPattern        = regexp.MustCompile(`^refs/(tags|heads)/[A-Za-z0-9_.*-]+(/[A-Za-z0-9_.*-]+)*$`)
+	githubRefPattern        = regexp.MustCompile(`^refs/(tags|heads)/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$`)
+	githubCommitPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	// YAML libraries disagree on other spellings of an integer, such as a
-	// leading zero, so verifiers accept the ID only in plain decimal.
+	// leading zero, and verifiers compare the ID as text, so it is plain decimal.
 	repositoryIDPattern = regexp.MustCompile(`^[1-9][0-9]{0,17}$`)
 )
 
-// Verifiers build a regular expression from a provenance requirement, so its
-// length bounds the size of that expression.
+// Verifiers compare the values of a provenance requirement as text and the
+// collateral service puts them into requests, so their lengths are bounded.
 const (
 	maxGitHubRepositoryLength = 140
 	maxGitHubWorkflowLength   = 255
@@ -479,7 +480,7 @@ func validateContainerImage(index int, image string) error {
 }
 
 // validateContainerProvenance checks the shape of a build requirement. The
-// ref must name tags or branches: other ref kinds, such as pull requests, run
+// ref must name a tag or a branch: other ref kinds, such as pull requests, run
 // workflows from code the repository owner has not accepted.
 func validateContainerProvenance(index int, provenance *Provenance) error {
 	if provenance == nil {
@@ -499,7 +500,10 @@ func validateContainerProvenance(index int, provenance *Provenance) error {
 		return fmt.Errorf("containers[%d].provenance.github.workflow %q must be a workflow file name", index, github.Workflow)
 	}
 	if len(github.Ref) > maxGitHubRefLength || !githubRefPattern.MatchString(github.Ref) {
-		return fmt.Errorf("containers[%d].provenance.github.ref %q must be a tag or branch ref pattern", index, github.Ref)
+		return fmt.Errorf("containers[%d].provenance.github.ref %q must be an exact tag or branch ref", index, github.Ref)
+	}
+	if !githubCommitPattern.MatchString(github.Commit) {
+		return fmt.Errorf("containers[%d].provenance.github.commit %q must be 40 lowercase hexadecimal characters", index, github.Commit)
 	}
 	return nil
 }

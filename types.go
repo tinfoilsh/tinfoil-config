@@ -178,13 +178,14 @@ type Provenance struct {
 	GitHub *GitHubProvenance `yaml:"github" json:"github"`
 }
 
-// GitHubProvenance identifies a GitHub Actions workflow run. Ref is a ref
-// pattern in which "*" matches any run of characters other than "/".
+// GitHubProvenance identifies a GitHub Actions workflow run. Ref is the exact
+// tag or branch ref it ran for, and Commit the source commit it built.
 type GitHubProvenance struct {
 	Repository   string `yaml:"repository" json:"repository"`
 	RepositoryID int64  `yaml:"repository_id" json:"repository_id"`
 	Workflow     string `yaml:"workflow" json:"workflow"`
 	Ref          string `yaml:"ref" json:"ref"`
+	Commit       string `yaml:"commit" json:"commit"`
 }
 
 type Healthcheck struct {

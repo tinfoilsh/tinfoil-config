@@ -2,6 +2,7 @@ package yamlconfig_test
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json/jsontext"
 	"os"
 	"strings"
@@ -27,6 +28,9 @@ func fullConfig(t *testing.T) (yaml, json string) {
 	return string(source), string(translated)
 }
 
+// fullCommit is the source commit the pair pins its first container to.
+const fullCommit = "4f1c2d3e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d"
+
 func TestToJSONIsLiteralAndCanonical(t *testing.T) {
 	fullYAML, fullJSON := fullConfig(t)
 	got, err := yamlconfig.ToJSON([]byte(fullYAML), Options{})
@@ -46,6 +50,32 @@ func TestToJSONIsLiteralAndCanonical(t *testing.T) {
 	}
 	if config.Networks["app"].Egress != "closed" || config.ShimCfg.TLSMode != "cert-proxy" {
 		t.Fatalf("defaults were not applied on reading: %+v %q", config.Networks["app"], config.ShimCfg.TLSMode)
+	}
+}
+
+// Some commits are text that YAML reads as a number when it is not quoted.
+// The JSON form states the text as written either way.
+func TestToJSONTakesACommitAsWritten(t *testing.T) {
+	fullYAML, fullJSON := fullConfig(t)
+	if !strings.Contains(fullYAML, "commit: "+fullCommit) || !strings.Contains(fullJSON, `"commit":"`+fullCommit+`"`) {
+		t.Fatalf("test config lacks commit %s", fullCommit)
+	}
+	for name, written := range map[string]string{
+		"all digits":        "1234567890123456789012345678901234567890",
+		"digits with one e": "12345678901234567890123456789012345678e9",
+		"leading zero":      "0000000000000000000000000000000000000017",
+		"binary prefix":     "0b00000000000000000000000000000000000011",
+		"quoted":            `"1234567890123456789012345678901234567890"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := yamlconfig.ToJSON([]byte(strings.Replace(fullYAML, "commit: "+fullCommit, "commit: "+written, 1)), Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := strings.Replace(fullJSON, fullCommit, strings.Trim(written, `"`), 1); string(got) != want {
+				t.Fatalf("JSON form:\n%s\nwant:\n%s", got, want)
+			}
+		})
 	}
 }
 
@@ -122,6 +152,7 @@ func TestToJSONRefusesWhatItWouldHaveToInterpret(t *testing.T) {
 		"alias":                      {replace("  web:\n    egress: allowlist\n    allow: [example.com]", "  web: &web\n    egress: allowlist\n    allow: [example.com]\n  other: *web"), "aliases are unsupported"},
 		"exponent for a decimal":     {replace(`cpus: 1.5`, `cpus: 15e-1`), "plain decimal"},
 		"null list item":             {replace(`command: [serve, --port, "8080"]`, `command: [serve, null]`), "must not be null"},
+		"commit in another encoding": {replace("commit: "+fullCommit, "commit: !!binary "+base64.StdEncoding.EncodeToString([]byte(fullCommit))), "quote it"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := yamlconfig.ToJSON([]byte(test.config), Options{})

@@ -171,6 +171,9 @@
 							"github": {
 								"additionalProperties": false,
 								"properties": {
+									"commit": {
+										"type": "string"
+									},
 									"ref": {
 										"type": "string"
 									},
